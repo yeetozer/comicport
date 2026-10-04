@@ -40,7 +40,7 @@ jobs:
           report = {'apps': [], 'builds': [], 'groups': [], 'testers': [], 'review_details': [], 'localizations': [], 'store_versions': [], 'availability': [], 'endpoint_errors': []}
           def clean(value):
               if isinstance(value, dict):
-                  return {k: ('[masked]' if 'phone' in k.lower() else clean(v)) for k,v in value.items()}
+                  return {k: ('[masked]' if any(s in k.lower() for s in ('phone', 'password')) else clean(v)) for k,v in value.items()}
               if isinstance(value, list): return [clean(v) for v in value]
               if isinstance(value, str):
                   for secret in (os.environ['ASC_KEY_ID'], os.environ['ASC_ISSUER_ID']): value = value.replace(secret, '[masked]')
@@ -101,7 +101,7 @@ jobs:
               report['store_versions'].extend(attrs(x) for x in rows('/v1/apps/' + aid + '/appStoreVersions', {'limit':10}))
               availability = get('/v1/apps/' + aid, {'include':'appAvailability'})
               report['availability'].extend(attrs(x) for x in availability.get('included', []))
-              for av in rows('/v2/apps/' + aid + '/appAvailability'):
+              for av in rows('/v1/apps/' + aid + '/appAvailabilityV2'):
                   entry = attrs(av)
                   entry['territories'] = [attrs(x) for x in rows('/v2/appAvailabilities/' + av['id'] + '/territoryAvailabilities', {'include':'territory', 'limit':200})]
                   report['availability'].append(entry)
