@@ -46,18 +46,34 @@ jobs:
                   for secret in (os.environ['ASC_KEY_ID'], os.environ['ASC_ISSUER_ID']): value = value.replace(secret, '[masked]')
                   return re.sub(r"([^\s@]+)@([A-Za-z0-9.-]+)", lambda m: m[1][:1] + '***@' + m[2], value)
               return value
+          report.update({'beta_license_agreement': {}, 'app_fields': {}, 'contract_or_agreement_strings': [], 'endpoint_statuses': []})
+          def scan(value, location='$'):
+              if isinstance(value, dict):
+                  for k, v in value.items(): scan(v, location + '.' + k)
+              elif isinstance(value, list):
+                  for n, v in enumerate(value): scan(v, location + '[' + str(n) + ']')
+              elif isinstance(value, str) and re.search(r'CONTRACT|AGREEMENT', value, re.I):
+                  report['contract_or_agreement_strings'].append(clean(location + ': ' + value))
           def get(path, params=None):
               url = 'https://api.appstoreconnect.apple.com' + path
               if params: url += '?' + urllib.parse.urlencode(params)
               if not url.startswith('https://api.appstoreconnect.apple.com/'): raise ValueError('Invalid origin')
               try:
-                  with urllib.request.urlopen(urllib.request.Request(url, headers={'Authorization': 'Bearer ' + token}, method='GET'), timeout=60) as response: return json.load(response)
+                  with urllib.request.urlopen(urllib.request.Request(url, headers={'Authorization': 'Bearer ' + token}, method='GET'), timeout=60) as response:
+                      result = json.load(response)
+                      report['endpoint_statuses'].append({'path': path, 'params': params, 'status': response.status})
+                      scan(result, path)
+                      return result
               except urllib.error.HTTPError as error:
-                  try: errors = json.load(error).get('errors', [])
+                  report['endpoint_statuses'].append({'path': path, 'params': params, 'status': error.code})
+                  try:
+                      payload = json.load(error)
+                      scan(payload, path)
+                      errors = payload.get('errors', [])
                   except Exception: errors = []
-                  message = clean(f"GET {path}: HTTP {error.code} " + '; '.join(e.get('title','') + ': ' + e.get('detail','') for e in errors))
+                  message = clean(f"GET {path}: HTTP {error.code} " + '; '.join(e.get('code','') + ' ' + e.get('title','') + ': ' + e.get('detail','') for e in errors))
                   report['endpoint_errors'].append(message); print(message)
-                  return {'data': []}
+                  return {'data': [], '_errors': errors, '_status': error.code}
           def rows(path, params=None):
               result = get(path, params)
               data = result.get('data') or []
@@ -74,13 +90,38 @@ jobs:
           for app in apps:
               aid = app['id']; a = app.get('attributes', {})
               report['apps'].append({'id': aid, **{k:a.get(k) for k in ('name','primaryLocale','contentRightsDeclaration')}})
-              result = get('/v1/builds', {'filter[app]': aid, 'include': 'preReleaseVersion,buildBetaDetail', 'limit': 20})
+              for endpoint in ('/v1/betaLicenseAgreements', '/v1/apps/' + aid + '/betaLicenseAgreement'):
+                  params = {'filter[app]': aid} if endpoint == '/v1/betaLicenseAgreements' else None
+                  agreements = rows(endpoint, params)
+                  report['beta_license_agreement'][endpoint] = [{'id': x['id'], 'agreementTextSet': bool(x.get('attributes', {}).get('agreementText')), 'agreementTextLength': len(x.get('attributes', {}).get('agreementText') or ''), 'agreementTextSnippet': (x.get('attributes', {}).get('agreementText') or '')[:200]} for x in agreements]
+              fields = ['name', 'bundleId', 'sku', 'primaryLocale', 'contentRightsDeclaration', 'isOrEverWasMadeForKids', 'availableInNewTerritories']
+              while fields:
+                  details = get('/v1/apps/' + aid, {'fields[apps]': ','.join(fields)})
+                  if not details.get('_errors'):
+                      report['app_fields'] = details.get('data', {}).get('attributes', {})
+                      break
+                  error_text = json.dumps(details['_errors'])
+                  unknown = [f for f in fields if f in error_text]
+                  if not unknown: break
+                  fields = [f for f in fields if f not in unknown]
+              result = get('/v1/builds', {'filter[app]': aid, 'include': 'preReleaseVersion,buildBetaDetail', 'limit': 200})
+              all_builds = list(result.get('data', []))
+              all_included = list(result.get('included', []))
+              while result.get('links', {}).get('next'):
+                  parsed = urllib.parse.urlparse(result['links']['next'])
+                  if parsed.netloc != 'api.appstoreconnect.apple.com': raise ValueError('Invalid pagination origin')
+                  result = get(parsed.path + '?' + parsed.query)
+                  all_builds.extend(result.get('data', []))
+                  all_included.extend(result.get('included', []))
+              result = {'data': all_builds, 'included': all_included}
               included = {(i['type'],i['id']): i for i in result.get('included', [])}
               for build in result.get('data', []):
                   b = attrs(build); rel = build.get('relationships', {})
                   for name in ('preReleaseVersion','buildBetaDetail'):
                       ref = rel.get(name, {}).get('data')
                       if ref: b[name] = clean(included.get((ref['type'],ref['id']), {}).get('attributes', {}))
+                  b['betaBuildLocalizations'] = [{'id': x['id'], 'locale': x.get('attributes', {}).get('locale'), 'whatsNewSet': bool(x.get('attributes', {}).get('whatsNew'))} for x in rows('/v1/builds/' + build['id'] + '/betaBuildLocalizations')]
+                  b['platform'] = b.get('preReleaseVersion', {}).get('platform')
                   b['buildBundles'] = [attrs(x) for x in rows('/v1/builds/' + build['id'] + '/buildBundles')]
                   if not b['buildBundles']:
                       bundles = get('/v1/builds/' + build['id'], {'include':'buildBundles'})
@@ -97,7 +138,7 @@ jobs:
               report['review_details'].extend(attrs(x) for x in rows('/v1/betaAppReviewDetails', {'filter[app]':aid}))
               for loc in rows('/v1/betaAppLocalizations', {'filter[app]':aid}):
                   a = loc.get('attributes', {})
-                  report['localizations'].append({'locale':a.get('locale'), 'feedbackEmailSet':bool(a.get('feedbackEmail')), 'privacyPolicyUrlSet':bool(a.get('privacyPolicyUrl'))})
+                  report['localizations'].append({'locale':a.get('locale'), 'feedbackEmailSet':bool(a.get('feedbackEmail')), 'privacyPolicyUrlSet':bool(a.get('privacyPolicyUrl')), 'descriptionLength':len(a.get('description') or '')})
               report['store_versions'].extend(attrs(x) for x in rows('/v1/apps/' + aid + '/appStoreVersions', {'limit':10}))
               availability = get('/v1/apps/' + aid, {'include':'appAvailability'})
               report['availability'].extend(attrs(x) for x in availability.get('included', []))
