@@ -108,21 +108,23 @@ Reason: ComicPort has no account/login, and import, reading and library features
 
 ### Review Notes — maximum 4,000 characters for this draft; Apple documents Notes as 4,000 bytes
 
-Draft: 2182 characters. 
+Draft: 2322 characters.
 
 ```text
 ComicPort is an offline reader for user-supplied comic files. It has no account or sign-in, no network client, no advertising, analytics or tracking. Reading, panel detection and library processing run locally. Optional Sync Folder writes reading-state metadata to a user-selected folder, not to a ComicPort server; a cloud storage provider may separately sync that folder.
 
-The reviewer needs a CBZ or PDF file to test reading. No commercial comic books are bundled or supplied. A reviewer-ready, self-made or verified public-domain sample will be provided here: <SAMPLE COMIC FILE URL>. Download it outside the app, save it in Files on iPad or Finder on Mac, then select Import in ComicPort. On Mac, Command-O also opens Import. Select the sample, open its library item, turn pages, enable Guided Panel View in the reader controls, and check that reading progress is remembered after closing and reopening the book.
+The reviewer needs a CBZ or PDF file to test reading. No commercial comic books are bundled or supplied. Public-domain sample: Henry Aldrich #12 (1952), CBZ, 36 image pages, 28.19 MB: https://archive.org/download/HenryAldrichComics1-22completeRun/Henry_Aldrich_Comics_012_1952_Bumblebee-man.cbz . Download it outside the app, save it in Files on iPad or Finder on Mac, then select Import in ComicPort. On Mac, Command-O also opens Import. Select the sample, open its library item, turn pages, enable Guided Panel View in the reader controls, and check that reading progress is remembered after closing and reopening the book.
 
-Legal sample candidates include Digital Comic Museum (https://digitalcomicmuseum.com/) and Comic Book Plus (https://comicbookplus.com/), which offer public-domain golden-age comics. Verify the specific work's public-domain status, download terms and rights in the relevant jurisdiction before using or redistributing it. The recommended review sample is a small comic drawn by the developer or a specifically verified public-domain file, provided directly so the reviewer does not need to register at a third-party site.
+Backup PDF: Henry Aldrich #5 (1951), 36 pages, 2.89 MB: https://archive.org/download/henry-aldrich-001_20260320/Henry_Aldrich_005.pdf . Both links download directly without an account. These are family-friendly teen-humor comics; the backup includes mild cartoon horseplay.
+
+Provenance: Henry Aldrich #12 (1952) and #5 (1951), Dell Publishing; Internet Archive labels the complete run with Public Domain Mark 1.0, corroborated by Comic Book Plus's public-domain collection: https://archive.org/details/HenryAldrichComics1-22completeRun and https://comicbookplus.com/?cid=1414 .
 
 Supported devices: iPad with iPadOS 17+, or Apple Silicon Mac with macOS 14+ via Mac Catalyst. iPhone and Intel Mac are not supported. Both platforms import PDF, CBZ/ZIP, CBR/RAR, CB7/7z and CBT/TAR. The iPad build includes WidgetKit Home Screen widgets and touch navigation. Mac has desktop menus, keyboard navigation, Finder drag-and-drop import and security-scoped source folders in Sources & Sync. Choose a local source folder, quit and relaunch, then scan it again to check persistent access. The Mac build does not include the iPad widget.
 
 Backup & Restore is available in Settings. Backups preserve library/profile data, not comic file contents; keep original comic files separately. No credentials or paid content access are needed.
 ```
 
-Sample preparation (not an ASC field; no character limit): Yigit should provide a small, self-made or verified public-domain multipage CBZ/PDF with clear panels and a working direct download at <SAMPLE COMIC FILE URL>. Do not claim it already exists. Digital Comic Museum and Comic Book Plus are candidate sources, not blanket clearance for every file or country. Verify the specific licence/status and any redistribution conditions before sharing.
+Sample verification (not an ASC field; no character limit): Primary CBZ: https://archive.org/download/HenryAldrichComics1-22completeRun/Henry_Aldrich_Comics_012_1952_Bumblebee-man.cbz . curl followed redirects without login to https://dn760108.eu.archive.org/0/items/HenryAldrichComics1-22completeRun/Henry_Aldrich_Comics_012_1952_Bumblebee-man.cbz ; HTTP 200, application/x-cbz, 28,190,070 bytes, ZIP magic PK, CRC test passed, 36 JPEG images with zero-padded filenames in reading order (sort filenames; raw ZIP insertion order starts at page 05). One non-image .PAR entry should be ignored. Backup PDF: https://archive.org/download/henry-aldrich-001_20260320/Henry_Aldrich_005.pdf redirected to https://dn720900.ca.archive.org/0/items/henry-aldrich-001_20260320/Henry_Aldrich_005.pdf ; HTTP 200, application/pdf, 2,887,781 bytes, %PDF header, 36 pages parsed with PyMuPDF. All pages were screened in contact sheets; no sexual or racial material was detected, though the backup has mild cartoon scuffles and a pipe-smoking reference. Host public-domain labels are the rights evidence, not an independent copyright-renewal search or worldwide legal clearance. No comic files were uploaded or committed; temporary downloads were deleted. Import in ComicPort itself still needs device testing.
 
 ## 4. Build 2 — What to Test
 
@@ -213,7 +215,6 @@ The 90-day upload-based window is documented by Apple.[3][4]
 
 - [ ] Yigit Solutions is hosting the privacy policy: publish the completed draft at public HTTPS; fill <PRIVACY POLICY URL>. Also confirm the policy is easily accessible within the shipped app as required by the guidelines. This pack does not add an in-app link or change source.[7][8]
 - [ ] Fill <CONTACT FIRST NAME>, <CONTACT LAST NAME>, <CONTACT PHONE NUMBER> (international format); make sure Apple can reach the contact.
-- [ ] Supply and test a legal sample download; fill <SAMPLE COMIC FILE URL> in Review Notes. No sample file has been created or hosted by this task.
 - [ ] Confirm the ASC distribution version shown as 1.0 versus the uploaded marketing version 1.0.0 does not block selection/submission. TestFlight has its own platform/version/build selector; do not assume the distribution version label determines beta eligibility. The exact account state and equivalence were not verified; check that 1.0.0 (2) appears and can be added on each platform, and resolve any ASC validation message before submission. No project/version changes are authorized here.[2]
 
 ### Evidence and scope notes
