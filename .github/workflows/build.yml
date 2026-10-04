@@ -1,0 +1,54 @@
+name: Unsigned compile check
+on:
+  push:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    name: ${{ matrix.platform }}
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: iPad
+            destination: generic/platform=iOS
+            log: ipad.log
+          - platform: Mac Catalyst
+            destination: generic/platform=macOS,variant=Mac Catalyst
+            log: mac-catalyst.log
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest stable installed Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_PATH=$(python3 - <<'PY'
+          import pathlib, re, subprocess
+          candidates = []
+          for path in pathlib.Path('/Applications').glob('Xcode*.app'):
+              result = subprocess.run([str(path / 'Contents/Developer/usr/bin/xcodebuild'), '-version'], capture_output=True, text=True)
+              match = re.search(r'^Xcode (\d+(?:\.\d+)*)\s*$', result.stdout, re.M)
+              if result.returncode == 0 and match and not re.search(r'beta|rc|preview', path.name, re.I):
+                  candidates.append((tuple(map(int, match.group(1).split('.'))), str(path)))
+          if not candidates:
+              raise SystemExit('No stable installed Xcode found')
+          print(max(candidates)[1])
+          PY
+          )
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version | tee xcode-version.log
+          xcodebuild -list -project PanelReader.xcodeproj | tee project-list.log
+      - name: Unsigned Release build
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project PanelReader.xcodeproj -scheme 'ComicPort Mac' -configuration Release -destination '${{ matrix.destination }}' CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee '${{ matrix.log }}'
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ matrix.log }}
+          path: '*.log'
+          if-no-files-found: warn
