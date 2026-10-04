@@ -48,14 +48,14 @@ Leave blank. No public marketing website is being claimed or created. Draft coun
 
 ### Privacy Policy URL — required for review compliance; numeric character limit not published
 
-The policy is NOT hosted yet. Yigit Solutions is hosting it; publish the completed AppStorePrep/PRIVACY_POLICY_DRAFT.md at a public HTTPS URL, replace the placeholder below and verify it opens without sign-in. Do not paste the placeholder as a real URL.
+The policy is published on GitHub Pages and verified to open over HTTPS without sign-in. Support URL: https://yeetozer.github.io/comicport-site/support/. The yigitsolutions.com version can replace these interim URLs later.
 
 For external testing, treat a published policy as required for review compliance: Apple says TestFlight apps must comply with the App Review Guidelines (2.2), and 5.1.1(i) requires a policy link in ASC metadata and in the app. Apple's App Privacy help also says a URL is required for all apps. The Test Information help does not explicitly document whether the beta form's URL box itself is a hard submission gate; that live-form enforcement was not verified. No-data collection is not an exemption.[7][8]
 
-Draft: 20 characters. 
+Draft: 50 characters.
 
 ```text
-<PRIVACY POLICY URL>
+https://yeetozer.github.io/comicport-site/privacy/
 ```
 
 ### Licence Agreement — default; no drafted text / no character limit for this choice
@@ -213,7 +213,7 @@ The 90-day upload-based window is documented by Apple.[3][4]
 
 ## 8. Open items before submitting for Beta App Review
 
-- [ ] Yigit Solutions is hosting the privacy policy: publish the completed draft at public HTTPS; fill <PRIVACY POLICY URL>. Also confirm the policy is easily accessible within the shipped app as required by the guidelines. This pack does not add an in-app link or change source.[7][8]
+- [ ] Confirm the policy is easily accessible within the shipped app as required by the guidelines. This pack does not add an in-app link or change source.[7][8]
 - [ ] Fill <CONTACT FIRST NAME>, <CONTACT LAST NAME>, <CONTACT PHONE NUMBER> (international format); make sure Apple can reach the contact.
 - [ ] Confirm the ASC distribution version shown as 1.0 versus the uploaded marketing version 1.0.0 does not block selection/submission. TestFlight has its own platform/version/build selector; do not assume the distribution version label determines beta eligibility. The exact account state and equivalence were not verified; check that 1.0.0 (2) appears and can be added on each platform, and resolve any ASC validation message before submission. No project/version changes are authorized here.[2]
 
@@ -221,7 +221,7 @@ The 90-day upload-based window is documented by Apple.[3][4]
 
 The app claims were checked against the requested AppStorePrep drafts, README, all STAGE20 notes, ComicArchiveFormat.swift, ComicPortCommands.swift, LibraryView.swift, ReaderView.swift, GuidedPanelView.swift, LibraryStore.swift source-folder bookmarks, PanelReaderWidgets.swift, Info.plist and project build settings. Older AppStorePrep/README notes are Mac-first and mention paused widgets/old identifiers; this pack uses the current source and supplied shipping context rather than repeating those stale details.
 
-The supplied context identifies uploaded build 2. Checked-in project settings still say CURRENT_PROJECT_VERSION = 1, while MARKETING_VERSION = 1.0.0; the upload's build number was not independently inspected in ASC. No ASC, Apple-account, repository-settings, hosting or source changes were made. Public Apple documentation retrieved for this pack does not publish numeric beta-description/What-to-Test/contact/URL field limits or verify the account-specific 1.0/1.0.0 behaviour. These are explicit checks, not fabricated assurances.
+The supplied context identifies uploaded build 2. Checked-in project settings still say CURRENT_PROJECT_VERSION = 1, while MARKETING_VERSION = 1.0.0; the upload's build number was not independently inspected in ASC. No ASC, Apple-account, app-repository-settings or app-source changes were made; the privacy policy and support pages were subsequently published in the separate public yeetozer/comicport-site repository on GitHub Pages. Public Apple documentation retrieved for this pack does not publish numeric beta-description/What-to-Test/contact/URL field limits or verify the account-specific 1.0/1.0.0 behaviour. These are explicit checks, not fabricated assurances.
 
 ## Sources
 
