@@ -1,0 +1,23 @@
+{
+  "runtime_network_api_hits": 0,
+  "privacy_manifest": {
+    "tracking": false,
+    "collected_data_types": [],
+    "required_reason_apis": {
+      "UserDefaults": [
+        "CA92.1"
+      ],
+      "FileTimestamp": [
+        "C617.1",
+        "3B52.1"
+      ],
+      "DiskSpace": [
+        "85F4.1"
+      ]
+    }
+  },
+  "app_store_category": "Books",
+  "bundle_id_current": "com.example.PanelReader",
+  "widget_status": "paused",
+  "stage": "19.3"
+}
