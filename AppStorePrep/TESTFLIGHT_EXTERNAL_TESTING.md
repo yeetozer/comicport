@@ -16,7 +16,7 @@ Friends
 
 4. External Testing > Friends > Add Builds > select platform and version > select build 2 > Add. Paste What to Test. Select Automatically notify testers if you want distribution after approval; otherwise use Notify Testers after approval. Repeat build selection for the other platform as needed; Apple allows only one build to be added at a time. Do not assume adding the iPad build adds Mac too.[2]
 5. Complete any missing review/contact/export information, then click Submit Review (Beta App Review / TestFlight App Review). If the build is already approved, ASC may show Start Testing instead. Wait for approval before inviting friends to install. The first external build needs full review; later builds may still require review.[2][3]
-6. External Testing > Friends > Testers > + > Email > enter friends' email addresses > follow the invitation dialog; OR Testers > Create Public Link > Open to Anyone or Filter by Criteria > Confirm > copy the link. Initial link setup is one-time per group; sharing can be repeated.[2]
+6. External Testing > Friends > Testers > + > Email > enter friends' email addresses > follow the invitation dialog; OR share the existing public link: https://testflight.apple.com/join/jbWWWKy5. The public link already exists; no initial link creation is needed. Sharing can be repeated.[2]
 7. For Filter by Criteria, add compatible iPad/iPadOS 17+ and Mac/macOS 14+ criteria where available. Explain the Apple Silicon requirement in the invite regardless; do not assume ASC has a chip filter. Optionally Set Limit for a small friends group. Links can be reshared by anyone, and can be changed/disabled via Manage next to Public Link. The app-wide maximum is 10,000 external testers; a public-link limit can be 1–10,000.[2]
 
 Invitation Experience > App Information (checkbox; no character limit): leave the default if desired. It pulls screenshots/category from the latest approved Ready for Distribution version, not arbitrary draft screenshots.[1]
@@ -36,23 +36,21 @@ Bring files you own or have permission to use. ComicPort does not supply or down
 
 ### Feedback Email — numeric character limit not published
 
-Draft: 21 characters. Required contact/reply-to address for testers; replace the placeholder.[1][2]
+Draft: 24 characters. Required contact/reply-to address for testers.[1][2]
 
 ```text
-<YOUR FEEDBACK EMAIL>
+yigit@yigitsolutions.com
 ```
 
 ### Marketing URL — optional; numeric character limit not published
 
 Leave blank. No public marketing website is being claimed or created. Draft count: 0 characters. This is a blank-field instruction, not text to paste.[5]
 
-### Privacy Policy URL — numeric character limit not published
+### Privacy Policy URL — required for review compliance; numeric character limit not published
 
-The policy is NOT hosted yet. Publish the completed AppStorePrep/PRIVACY_POLICY_DRAFT.md at a public HTTPS URL, replace the placeholder below and verify it opens without sign-in. Do not paste the placeholder as a real URL.
+The policy is NOT hosted yet. Yigit Solutions is hosting it; publish the completed AppStorePrep/PRIVACY_POLICY_DRAFT.md at a public HTTPS URL, replace the placeholder below and verify it opens without sign-in. Do not paste the placeholder as a real URL.
 
 For external testing, treat a published policy as required for review compliance: Apple says TestFlight apps must comply with the App Review Guidelines (2.2), and 5.1.1(i) requires a policy link in ASC metadata and in the app. Apple's App Privacy help also says a URL is required for all apps. The Test Information help does not explicitly document whether the beta form's URL box itself is a hard submission gate; that live-form enforcement was not verified. No-data collection is not an exemption.[7][8]
-
-### Privacy Policy URL — required for review compliance; numeric character limit not published
 
 Draft: 20 characters. 
 
@@ -94,10 +92,10 @@ Draft: 22 characters.
 
 ### Email — numeric character limit not published
 
-Draft: 15 characters. 
+Draft: 24 characters.
 
 ```text
-<CONTACT EMAIL>
+yigit@yigitsolutions.com
 ```
 
 ### Sign-in required — checkbox; no character limit
@@ -130,7 +128,7 @@ Sample preparation (not an ASC field; no character limit): Yigit should provide 
 
 ### What to Test — maximum 4,000 characters (draft ceiling; verify ASC counter)
 
-Draft: 2560 characters. 
+Draft: 2563 characters.
 
 ```text
 Please use disposable test files you own or have permission to use. Keep your original comics separately; this is a beta. Build 2 is for iPadOS 17+ on iPad or macOS 14+ on Apple Silicon Mac, not iPhone or Intel Mac.
@@ -143,7 +141,7 @@ Please use disposable test files you own or have permission to use. Keep your or
 6. iPad only: add a ComicPort Home Screen widget. Try Continue Reading and Daily Goal; check that tapping opens the expected app destination, including after closing the app. There is no Mac widget in this build.
 7. Mac only: in Sources & Sync, add a local test folder. Scan/import a comic, quit ComicPort fully, add another comic to that folder in Finder, relaunch and scan again. Does the folder remain listed and accessible without choosing it again? Report permission errors or missed files. Also try Command-O and Finder drag-and-drop import.
 
-Feedback: on iPad, take a screenshot in ComicPort, tap its thumbnail, then Done > Share Beta Feedback (labels may vary by OS); or TestFlight > ComicPort > Send Beta Feedback. On Mac, use TestFlight > ComicPort > Send Beta Feedback, attach a screenshot, or email <YOUR FEEDBACK EMAIL>. Include device/model, OS, build 2, file format/page, steps, expected result and actual result. Remove private pages or information from screenshots before sending.
+Feedback: on iPad, take a screenshot in ComicPort, tap its thumbnail, then Done > Share Beta Feedback (labels may vary by OS); or TestFlight > ComicPort > Send Beta Feedback. On Mac, use TestFlight > ComicPort > Send Beta Feedback, attach a screenshot, or email yigit@yigitsolutions.com. Include device/model, OS, build 2, file format/page, steps, expected result and actual result. Remove private pages or information from screenshots before sending.
 ```
 
 ## 5. Export compliance — App Uses Non-Exempt Encryption / encryption questions
@@ -162,11 +160,11 @@ If instead asked which encryption algorithms the app implements, choose the opti
 
 ### Friend invite message — draft limit about 600 characters
 
-Draft: 488 characters. 
+Draft: 517 characters.
 
 ```text
 Hey! Want to help me test ComicPort, my offline comic reader?
-<PUBLIC LINK>
+https://testflight.apple.com/join/jbWWWKy5
 
 You need an iPad on iPadOS 17+ or an Apple Silicon Mac on macOS 14+. Not iPhone, not Intel Mac.
 
@@ -213,13 +211,10 @@ The 90-day upload-based window is documented by Apple.[3][4]
 
 ## 8. Open items before submitting for Beta App Review
 
-- [ ] Publish the completed privacy-policy draft at public HTTPS; fill <PRIVACY POLICY URL>. Also confirm the policy is easily accessible within the shipped app as required by the guidelines. This pack does not add an in-app link or change source.[7][8]
-- [ ] Fill <YOUR FEEDBACK EMAIL> in Test Information and What to Test, and confirm it receives email.
-- [ ] Fill <CONTACT FIRST NAME>, <CONTACT LAST NAME>, <CONTACT PHONE NUMBER> (international format) and <CONTACT EMAIL>; make sure Apple can reach the contact.
+- [ ] Yigit Solutions is hosting the privacy policy: publish the completed draft at public HTTPS; fill <PRIVACY POLICY URL>. Also confirm the policy is easily accessible within the shipped app as required by the guidelines. This pack does not add an in-app link or change source.[7][8]
+- [ ] Fill <CONTACT FIRST NAME>, <CONTACT LAST NAME>, <CONTACT PHONE NUMBER> (international format); make sure Apple can reach the contact.
 - [ ] Supply and test a legal sample download; fill <SAMPLE COMIC FILE URL> in Review Notes. No sample file has been created or hosted by this task.
-- [ ] Confirm uploaded build 2 is processed and eligible for external testing on BOTH platforms, not marked TestFlight Internal Only.[2]
 - [ ] Confirm the ASC distribution version shown as 1.0 versus the uploaded marketing version 1.0.0 does not block selection/submission. TestFlight has its own platform/version/build selector; do not assume the distribution version label determines beta eligibility. The exact account state and equivalence were not verified; check that 1.0.0 (2) appears and can be added on each platform, and resolve any ASC validation message before submission. No project/version changes are authorized here.[2]
-- [ ] Replace <PUBLIC LINK> after approval/link creation. Recount all edited fields and the invite message.
 
 ### Evidence and scope notes
 
