@@ -103,6 +103,96 @@ jobs:
             -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee "upload-$PLATFORM.log"
+      - name: Report exported package signing
+        id: signing-report
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          if [[ "$PLATFORM" == ipad ]]; then
+            packages=("$RUNNER_TEMP/export/"*.ipa)
+          else
+            packages=("$RUNNER_TEMP/export/"*.pkg)
+          fi
+          if (( ${#packages[@]} == 0 )); then
+            printf 'No exported package found; signing report skipped.\n'
+            exit 0
+          fi
+          printf 'package_exists=true\n' >> "$GITHUB_OUTPUT"
+          python3 - "${packages[@]}" <<'PY' 2>&1 | tee "signing-$PLATFORM.log"
+          import os, pathlib, plistlib, subprocess, sys, tempfile
+
+          def command(args):
+              result = subprocess.run(args, capture_output=True, text=True)
+              print(result.stdout, end='')
+              print(result.stderr, end='')
+              print(f'Exit status: {result.returncode}')
+              return result.returncode
+
+          def inspect(bundle):
+              print(f'\nBundle: {bundle}')
+              catalyst = os.environ['PLATFORM'] == 'mac-catalyst'
+              info = bundle / ('Contents/Info.plist' if catalyst else 'Info.plist')
+              print('CFBundleIdentifier:')
+              command(['/usr/libexec/PlistBuddy', '-c', 'Print :CFBundleIdentifier', str(info)])
+              profile = bundle / ('Contents/embedded.provisionprofile' if catalyst else 'embedded.mobileprovision')
+              if profile.exists():
+                  # Decode privately; never print the full profile or DeveloperCertificates.
+                  decoded = subprocess.run(['security', 'cms', '-D', '-i', str(profile)], capture_output=True)
+                  print(f'Profile decode exit status: {decoded.returncode}')
+                  if decoded.returncode == 0:
+                      try:
+                          data = plistlib.loads(decoded.stdout)
+                          for field in ('Name', 'TeamIdentifier', 'ExpirationDate', 'ProvisionsAllDevices'):
+                              print(f'{field}: {data.get(field, "<absent>")}')
+                          devices = 'ProvisionedDevices' in data
+                          print(f'ProvisionedDevices exists: {devices} (must be False for App Store)')
+                          print('Entitlements:')
+                          for key, value in sorted(data.get('Entitlements', {}).items()):
+                              print(f'  {key}: {value!r}')
+                      except Exception as error:
+                          print(f'Profile parsing failed: {type(error).__name__}')
+              else:
+                  print('Embedded provisioning profile: absent')
+              print('Code signature entitlements:')
+              command(['codesign', '-d', '--entitlements', ':-', str(bundle)])
+              print('Code signature verification:')
+              command(['codesign', '--verify', '--deep', '--strict', '--verbose=2', str(bundle)])
+
+          for package in map(pathlib.Path, sys.argv[1:]):
+              print(f'\nPackage: {package.name}')
+              with tempfile.TemporaryDirectory(prefix='testflight-signing-', dir=os.environ['RUNNER_TEMP']) as temporary:
+                  root = pathlib.Path(temporary)
+                  if os.environ['PLATFORM'] == 'ipad':
+                      if command(['unzip', '-q', str(package), '-d', str(root)]) != 0:
+                          continue
+                      apps = sorted((root / 'Payload').glob('*.app'))
+                  else:
+                      print('Installer signature:')
+                      command(['pkgutil', '--check-signature', str(package)])
+                      expanded = root / 'expanded'
+                      if command(['pkgutil', '--expand-full', str(package), str(expanded)]) != 0:
+                          continue
+                      apps = sorted(expanded.rglob('*.app'))
+                  if not apps:
+                      print('No application bundle found in exported package.')
+                  for app in apps:
+                      inspect(app)
+                      for extension in sorted(app.rglob('PlugIns/*.appex')):
+                          inspect(extension)
+          PY
+      - name: Keep exported package and signing report
+        if: always() && steps.signing-report.outputs.package_exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-package-${{ matrix.platform }}
+          path: |
+            ${{ runner.temp }}/export/*.ipa
+            ${{ runner.temp }}/export/*.pkg
+            signing-${{ matrix.platform }}.log
+          retention-days: 7
+          if-no-files-found: warn
       - name: Delete authentication key
         if: always()
         shell: bash
