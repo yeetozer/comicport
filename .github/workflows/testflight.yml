@@ -85,6 +85,24 @@ jobs:
             -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             2>&1 | tee "archive-$PLATFORM.log"
+      - name: Export local package for signing report
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, pathlib, plistlib
+          options = {'method': 'app-store-connect', 'destination': 'export',
+                     'teamID': os.environ['APPLE_TEAM_ID'], 'signingStyle': 'automatic',
+                     'uploadSymbols': True, 'manageAppVersionAndBuildNumber': False}
+          path = pathlib.Path(os.environ['RUNNER_TEMP']) / 'ExportOptions-local.plist'
+          with path.open('wb') as output:
+              plistlib.dump(options, output)
+          PY
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/ComicPort-$PLATFORM.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions-local.plist" -exportPath "$RUNNER_TEMP/export-local" \
+            -allowProvisioningUpdates -authenticationKeyPath "$RUNNER_TEMP/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            2>&1 | tee "export-local-$PLATFORM.log"
       - name: Export and upload
         shell: bash
         run: |
@@ -111,9 +129,9 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           if [[ "$PLATFORM" == ipad ]]; then
-            packages=("$RUNNER_TEMP/export/"*.ipa)
+            packages=("$RUNNER_TEMP/export-local/"*.ipa)
           else
-            packages=("$RUNNER_TEMP/export/"*.pkg)
+            packages=("$RUNNER_TEMP/export-local/"*.pkg)
           fi
           if (( ${#packages[@]} == 0 )); then
             printf 'No exported package found; signing report skipped.\n'
@@ -188,8 +206,8 @@ jobs:
         with:
           name: testflight-package-${{ matrix.platform }}
           path: |
-            ${{ runner.temp }}/export/*.ipa
-            ${{ runner.temp }}/export/*.pkg
+            ${{ runner.temp }}/export-local/*.ipa
+            ${{ runner.temp }}/export-local/*.pkg
             signing-${{ matrix.platform }}.log
           retention-days: 7
           if-no-files-found: warn
