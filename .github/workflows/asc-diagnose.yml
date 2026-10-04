@@ -60,7 +60,7 @@ jobs:
                   return {'data': []}
           def rows(path, params=None):
               result = get(path, params)
-              data = result.get('data', [])
+              data = result.get('data') or []
               if isinstance(data, dict): data = [data]
               while result.get('links', {}).get('next'):
                   next_url = result['links']['next']
@@ -82,6 +82,9 @@ jobs:
                       ref = rel.get(name, {}).get('data')
                       if ref: b[name] = clean(included.get((ref['type'],ref['id']), {}).get('attributes', {}))
                   b['buildBundles'] = [attrs(x) for x in rows('/v1/builds/' + build['id'] + '/buildBundles')]
+                  if not b['buildBundles']:
+                      bundles = get('/v1/builds/' + build['id'], {'include':'buildBundles'})
+                      b['buildBundles'] = [attrs(x) for x in bundles.get('included', []) if x['type'] == 'buildBundles']
                   b['appEncryptionDeclaration'] = [attrs(x) for x in rows('/v1/builds/' + build['id'] + '/appEncryptionDeclaration')]
                   report['builds'].append(b)
               for group in rows('/v1/apps/' + aid + '/betaGroups', {'limit':200}):
