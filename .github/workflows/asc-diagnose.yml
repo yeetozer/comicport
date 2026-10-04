@@ -101,7 +101,7 @@ jobs:
                       report['app_fields'] = details.get('data', {}).get('attributes', {})
                       break
                   error_text = json.dumps(details['_errors'])
-                  unknown = [f for f in fields if f in error_text]
+                  unknown = [f for f in fields if ("'" + f + "'") in error_text or ('\"' + f + '\"') in error_text]
                   if not unknown: break
                   fields = [f for f in fields if f not in unknown]
               result = get('/v1/builds', {'filter[app]': aid, 'include': 'preReleaseVersion,buildBetaDetail', 'limit': 200})
