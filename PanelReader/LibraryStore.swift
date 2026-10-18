@@ -1319,7 +1319,11 @@ final class LibraryStore: ObservableObject {
         errorPrefix: String
     ) {
         metadataGeneration += 1
-        metadataWriter.enqueue(snapshot, to: url, generation: metadataGeneration)
+        metadataWriter.enqueue(snapshot, to: url, generation: metadataGeneration) { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.importError = "\(errorPrefix): \(message)"
+            }
+        }
     }
 
     /// Submissions happen synchronously on main; encoding and disk IO never do.
@@ -3424,11 +3428,17 @@ final class VersionedMetadataWriter: @unchecked Sendable {
         failures.removeValue(forKey: url)
     }
 
-    func enqueue<T: Encodable & Sendable>(_ value: T, to url: URL, generation: UInt64) {
+    func enqueue<T: Encodable & Sendable>(
+        _ value: T, to url: URL, generation: UInt64,
+        onFailure: (@Sendable (String) -> Void)? = nil
+    ) {
         queue.async {
             guard generation > (self.latest[url] ?? 0) else { return }
             do { try self.commit(JSONEncoder().encode(value), to: url, generation: generation) }
-            catch { self.failures[url] = error }
+            catch {
+                self.failures[url] = error
+                onFailure?(error.localizedDescription)
+            }
         }
     }
 

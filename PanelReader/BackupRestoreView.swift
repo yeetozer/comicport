@@ -13,6 +13,7 @@ struct BackupRestoreView: View {
     @State private var isWorking = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
+    @State private var restoreWarnings: [String] = []
 
     private var unlockedCount: Int { store.achievementProfile.unlockedIDs.count }
     private var noteCount: Int { store.annotationPageCount }
@@ -46,6 +47,17 @@ struct BackupRestoreView: View {
                 backupHealthCard
                 includedCard
                 safetyCard
+
+                if !restoreWarnings.isEmpty {
+                    DisclosureGroup("Restore details (\(restoreWarnings.count) warnings)") {
+                        ForEach(Array(restoreWarnings.prefix(20).enumerated()), id: \.offset) { _, warning in
+                            Text(warning).font(.caption).frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        if restoreWarnings.count > 20 {
+                            Text("+\(restoreWarnings.count - 20) more").font(.caption)
+                        }
+                    }
+                }
 
                 if let statusMessage {
                     HStack(spacing: 10) {
@@ -288,6 +300,7 @@ struct BackupRestoreView: View {
         guard !isWorking else { return }
         isWorking = true
         statusMessage = nil
+        restoreWarnings = []
 
         Task { @MainActor in
             do {
@@ -306,6 +319,7 @@ struct BackupRestoreView: View {
         guard !isWorking else { return }
         isWorking = true
         statusMessage = nil
+        restoreWarnings = []
 
         Task { @MainActor in
             let gotAccess = url.startAccessingSecurityScopedResource()
@@ -323,8 +337,11 @@ struct BackupRestoreView: View {
                 }
 
                 isWorking = false
+                restoreWarnings = result.skippedItems
+                let missingImages = restoreWarnings.filter { $0.hasSuffix("missing image (metadata retained)") }.count
+                let skipped = restoreWarnings.count - missingImages
                 setStatus(
-                    "\(result.skippedItems.isEmpty ? "Restore complete" : "Restored with \(result.skippedItems.count) items skipped"): \(result.importedBooks) comic records, \(result.historyEntries) sessions, \(result.notes) annotated pages and \(result.panels) saved panels processed.",
+                    "Restore complete (\(skipped) skipped, \(missingImages) restored without image): \(result.importedBooks) comic records, \(result.historyEntries) sessions, \(result.notes) annotated pages and \(result.panels) saved panels processed.",
                     error: false
                 )
             } catch {

@@ -1,5 +1,24 @@
 import SwiftUI
 
+/// Main-actor ownership makes expiration and completion idempotent.
+@MainActor
+final class BackgroundTaskToken {
+    private var ended = false
+    private var endAction: (() -> Void)?
+
+    func install(_ action: @escaping () -> Void) {
+        if ended { action() } else { endAction = action }
+    }
+
+    func end() {
+        guard !ended else { return }
+        ended = true
+        let action = endAction
+        endAction = nil
+        action?()
+    }
+}
+
 @main
 struct PanelReaderApp: App {
     @StateObject private var store = LibraryStore()
@@ -16,9 +35,19 @@ struct PanelReaderApp: App {
                 .tint(theme.accentColor)
                 .onChange(of: scenePhase) { _, phase in
                     guard phase == .background, store.isBootstrapped else { return }
-                    let token = UIApplication.shared.beginBackgroundTask(withName: "Persist library")
+                    #if !targetEnvironment(macCatalyst)
+                    let token = BackgroundTaskToken()
+                    let identifier = UIApplication.shared.beginBackgroundTask(withName: "Persist library") {
+                        Task { @MainActor in token.end() }
+                    }
+                    token.install {
+                        if identifier != .invalid { UIApplication.shared.endBackgroundTask(identifier) }
+                    }
+                    #endif
                     Task { @MainActor in
-                        defer { if token != .invalid { UIApplication.shared.endBackgroundTask(token) } }
+                        #if !targetEnvironment(macCatalyst)
+                        defer { token.end() }
+                        #endif
                         do { try await store.flush() }
                         catch { store.importError = "Could not save library: \(error.localizedDescription)" }
                     }

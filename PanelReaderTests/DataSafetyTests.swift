@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import PanelReader
 
 final class DataSafetyTests: XCTestCase {
@@ -215,6 +216,61 @@ final class DataSafetyTests: XCTestCase {
             catch {}
         }
         XCTAssertTrue(store.books.isEmpty)
+    }
+
+    @MainActor func testBackgroundTaskExpirationThenCompletionEndsOnce() {
+        var ends = 0
+        let token = BackgroundTaskToken()
+        token.install { ends += 1 }
+        token.end() // Expiration.
+        token.end() // Flush completion, including its error path.
+        XCTAssertEqual(ends, 1)
+        let early = BackgroundTaskToken()
+        early.end()
+        early.install { ends += 1 }
+        early.end()
+        XCTAssertEqual(ends, 2)
+    }
+
+    @MainActor func testEnqueuedStoreSnapshotIsImmutableAfterMutation() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(documentsURL: root)
+        let book = ComicBook(title: "Snapshot", storedFileName: "snapshot.pdf", type: .pdf,
+                             pageCount: 10, currentPage: 9, readingStatus: .completed)
+        _ = try await store.restoreBackupData(JSONEncoder().encode(payload(books: [book])))
+        let url = root.appendingPathComponent("snapshot.json")
+        let writer = VersionedMetadataWriter()
+        writer.enqueue(store.books, to: url, generation: 1)
+        store.restartComic(id: book.id)
+        try await writer.flush()
+        let disk = try JSONDecoder().decode([ComicBook].self, from: Data(contentsOf: url))
+        XCTAssertEqual(disk.first?.currentPage, 9)
+        XCTAssertEqual(disk.first?.readingStatus, .completed)
+        XCTAssertEqual(store.books.first?.currentPage, 0)
+        XCTAssertEqual(store.books.first?.readingStatus, .toRead)
+        try await store.flush()
+    }
+
+    @MainActor func testFailedForegroundWritePublishesUserErrorOnMain() async throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(documentsURL: root)
+        _ = try await store.restoreBackupData(JSONEncoder().encode(payload()))
+        let destination = root.appendingPathComponent("saved_panels.json")
+        try FileManager.default.removeItem(at: destination)
+        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        let surfaced = expectation(description: "Save failure published on MainActor")
+        let subscription = store.$importError.compactMap { $0 }.sink { message in
+            MainActor.assumeIsolated {
+                XCTAssertTrue(message.hasPrefix("Could not save My Panels:"))
+                surfaced.fulfill()
+            }
+        }
+        store.deletePanel(SavedPanel(bookID: UUID(), page: 0, imageFileName: "absent.jpg"))
+        await fulfillment(of: [surfaced], timeout: 5)
+        withExtendedLifetime(subscription) {}
+        do { try await store.flush(); XCTFail("Write must fail") } catch {}
     }
 
 }
