@@ -165,7 +165,7 @@
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		A00000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {A00000000000000000000005 = {CreatedOnToolsVersion = 16.0;}; 674BFA94F852AF614FEBDB76 = {CreatedOnToolsVersion = 16.0;};};}; buildConfigurationList = A0000000000000000000000E; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = A00000000000000000000002; productRefGroup = A00000000000000000000004; packageReferences = (E87232F32BB56F3FF1F2500F /* XCRemoteSwiftPackageReference "libarchive" */,); projectDirPath = ""; projectRoot = ""; targets = (A00000000000000000000005, 674BFA94F852AF614FEBDB76 /* PanelReaderWidgets */,); };
+		A00000000000000000000001 /* Project object */ = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 1600; LastUpgradeCheck = 1600; TargetAttributes = {A00000000000000000000005 = {CreatedOnToolsVersion = 16.0;}; 674BFA94F852AF614FEBDB76 = {CreatedOnToolsVersion = 16.0;};};}; buildConfigurationList = A0000000000000000000000E; compatibilityVersion = "Xcode 16.0"; developmentRegion = en; hasScannedForEncodings = 0; knownRegions = (en, Base,); mainGroup = A00000000000000000000002; productRefGroup = A00000000000000000000004; packageReferences = (E87232F32BB56F3FF1F2500F /* XCRemoteSwiftPackageReference "libarchive" */,); projectDirPath = ""; projectRoot = ""; targets = (DA7A00000000000000000001, A00000000000000000000005, 674BFA94F852AF614FEBDB76 /* PanelReaderWidgets */,); };
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
@@ -213,6 +213,18 @@
 		5B847F7094A117688D56487D /* Build configuration list for PBXNativeTarget "PanelReaderWidgets" */ = {isa = XCConfigurationList; buildConfigurations = (0D5EFC7546D192F38F7EE200 /* Debug */, 5A93C8FA3060920ABD123C53 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 
+		DA7A00000000000000000003 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelReaderTests/DataSafetyTests.swift; sourceTree = SOURCE_ROOT;};
+		DA7A00000000000000000004 = {isa = PBXBuildFile; fileRef = DA7A00000000000000000003;};
+		DA7A00000000000000000002 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = PanelReaderTests.xctest; sourceTree = BUILT_PRODUCTS_DIR;};
+		DA7A00000000000000000005 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (DA7A00000000000000000004,); runOnlyForDeploymentPostprocessing = 0;};
+		DA7A00000000000000000006 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+		DA7A00000000000000000007 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0;};
+		DA7A00000000000000000009 = {isa = PBXContainerItemProxy; containerPortal = A00000000000000000000001; proxyType = 1; remoteGlobalIDString = A00000000000000000000005; remoteInfo = PanelReader;};
+		DA7A00000000000000000008 = {isa = PBXTargetDependency; target = A00000000000000000000005; targetProxy = DA7A00000000000000000009;};
+		DA7A00000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = DA7A0000000000000000000C; buildPhases = (DA7A00000000000000000005, DA7A00000000000000000006, DA7A00000000000000000007,); buildRules = (); dependencies = (DA7A00000000000000000008,); name = PanelReaderTests; productName = PanelReaderTests; productReference = DA7A00000000000000000002; productType = "com.apple.product-type.bundle.unit-test";};
+		DA7A0000000000000000000A = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PanelReader.app/PanelReader"; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.yeetozer.comicport.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 17.0; TARGETED_DEVICE_FAMILY = 2; SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";}; name = Debug;};
+		DA7A0000000000000000000B = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PanelReader.app/PanelReader"; GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.yeetozer.comicport.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; IPHONEOS_DEPLOYMENT_TARGET = 17.0; TARGETED_DEVICE_FAMILY = 2; SUPPORTED_PLATFORMS = "iphonesimulator iphoneos";}; name = Release;};
+		DA7A0000000000000000000C = {isa = XCConfigurationList; buildConfigurations = (DA7A0000000000000000000A, DA7A0000000000000000000B,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Debug;};
 	};
 	rootObject = A00000000000000000000001 /* Project object */;
 }
