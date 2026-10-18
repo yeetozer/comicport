@@ -7,6 +7,9 @@ struct BookDetailView: View {
     @State private var info: OfflineComicInfo?
     @State private var analyzing = false
     @State private var analysisError: String?
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @State private var confirmRestart = false
+    @State private var confirmArchive = false
     @State private var confirmRemove = false
     @State private var confirmFileDelete = false
     @State private var confirmPermanentDelete = false
@@ -23,16 +26,27 @@ struct BookDetailView: View {
         Group {
             if let book {
                 ScrollView {
-                    VStack(spacing: 24) {
-                        header(book)
-                        readingActions(book)
-                        metadataControls(book)
-                        seriesControls(book)
-                        DisclosureGroup("Advanced") {
-                            BookSearchIndexCard(book: book)
-                            offlineInfoCard(book)
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: 28) {
+                            VStack(alignment: .leading, spacing: 20) {
+                                header(book)
+                                readingActions(book)
+                                metadataControls(book)
+                            }
+                            .frame(width: 360)
+                            VStack(alignment: .leading, spacing: 24) {
+                                seriesControls(book)
+                                advancedControls(book)
+                            }
+                            .frame(minWidth: 340, maxWidth: .infinity)
                         }
-                        storageControls(book)
+                        VStack(alignment: .leading, spacing: 24) {
+                            header(book)
+                            readingActions(book)
+                            metadataControls(book)
+                            seriesControls(book)
+                            advancedControls(book)
+                        }
                     }
                     .padding()
                     .frame(maxWidth: 900)
@@ -74,6 +88,16 @@ struct BookDetailView: View {
             ComicRepairLabView(bookID: bookID)
                 .environmentObject(store)
         }
+        .confirmationDialog("Start over?", isPresented: $confirmRestart, titleVisibility: .visible) {
+            Button("Start Over", role: .destructive) { store.restartComic(id: bookID) }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Your progress will reset and this comic will be marked To Read.")
+        }
+        .confirmationDialog("Archive this comic?", isPresented: $confirmArchive, titleVisibility: .visible) {
+            if let book { Button("Archive", role: .destructive) { store.archive(book) } }
+            Button("Cancel", role: .cancel) { }
+        }
         .confirmationDialog("Remove from Library?", isPresented: $confirmRemove, titleVisibility: .visible) {
             if let book { Button("Remove from Library", role: .destructive) { store.removeFromLibrary(book) } }
             Button("Cancel", role: .cancel) { }
@@ -81,7 +105,7 @@ struct BookDetailView: View {
             Text("The file and reading data are kept. You can restore this comic from Saved.")
         }
         .confirmationDialog("Delete the comic file from this device?", isPresented: $confirmFileDelete, titleVisibility: .visible) {
-            if let book { Button("Delete File, Keep Data", role: .destructive) { store.deleteFileKeepingData(book) } }
+            if let book { Button("Delete File Only", role: .destructive) { store.deleteFileKeepingData(book) } }
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Your reading history, progress, rating, favorite status, notes and saved information stay in ComicPort.")
@@ -98,7 +122,7 @@ struct BookDetailView: View {
     }
 
     @ViewBuilder private func header(_ book: ComicBook) -> some View {
-        HStack(alignment: .top, spacing: 24) {
+        VStack(alignment: .leading, spacing: 20) {
             CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, maxPixelSize: 700)
             .frame(width: 190, height: 285)
             .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -129,6 +153,8 @@ struct BookDetailView: View {
                     Label(book.currentPage > 0 ? String(localized: "Continue · page \(book.currentPage + 1)") : String(localized: "Start Reading"), systemImage: "play.fill")
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .frame(maxWidth: 360, alignment: .leading)
 
             } else {
                 Label("File is not on this device · import the same comic to reconnect", systemImage: "externaldrive.badge.xmark")
@@ -151,7 +177,23 @@ struct BookDetailView: View {
                     Button("Optimize Storage", systemImage: "internaldrive") { showStorageOptimizer = true }
                     Button("Analyze Offline", systemImage: "viewfinder") { analyze(book, force: true) }
                         .disabled(analyzing || !book.fileAvailable)
-                    Button("Start Over", systemImage: "arrow.counterclockwise") { store.updateProgress(id: book.id, page: 0) }
+                    Button("Start Over", systemImage: "arrow.counterclockwise") { confirmRestart = true }
+                }
+                Section("Library & Storage") {
+                    if book.isArchived {
+                        Button("Return from Archive") { store.unarchive(book) }
+                    } else {
+                        Button("Archive", role: .destructive) { confirmArchive = true }
+                    }
+                    if book.isInLibrary {
+                        Button("Remove from Library", role: .destructive) { confirmRemove = true }
+                    } else if book.fileAvailable {
+                        Button("Return to Library") { store.restoreToLibrary(book) }
+                    }
+                    if book.fileAvailable {
+                        Button("Delete File Only", role: .destructive) { confirmFileDelete = true }
+                    }
+                    Button("Delete Completely", role: .destructive) { confirmPermanentDelete = true }
                 }
             } label: {
                 Image(systemName: "ellipsis").frame(minWidth: 44, minHeight: 44)
@@ -210,50 +252,10 @@ struct BookDetailView: View {
         }
     }
 
-    @ViewBuilder private func storageControls(_ book: ComicBook) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("Library & Storage", systemImage: "externaldrive")
-                    .font(.title2.bold())
-                Spacer()
-            }
-
-            HStack {
-                if book.isArchived {
-                    Button { store.unarchive(book) } label: { Label("Return from Archive", systemImage: "arrow.uturn.backward") }
-                } else {
-                    Button { store.archive(book) } label: { Label("Archive", systemImage: "archivebox") }
-                }
-
-
-                Spacer()
-            }
-            .buttonStyle(.bordered)
-
-            Divider()
-            HStack {
-                if book.isInLibrary {
-                    Button(role: .destructive) { confirmRemove = true } label: { Label("Remove from Library", systemImage: "books.vertical") }
-                } else if book.fileAvailable {
-                    Button { store.restoreToLibrary(book) } label: { Label("Return to Library", systemImage: "books.vertical.fill") }
-                }
-                if book.fileAvailable {
-                    Button(role: .destructive) { confirmFileDelete = true } label: {
-                        Label("Delete File, Keep Data", systemImage: "externaldrive.badge.minus")
-                    }
-                }
-                Button(role: .destructive) { confirmPermanentDelete = true } label: {
-                    Label("Delete Completely…", systemImage: "trash")
-                }
-                Spacer()
-            }
-            .buttonStyle(.bordered)
-
-            if !book.fileAvailable {
-                Text("The comic file is not on this device. Its reading history, progress, rating, favorites, notes and offline information are still saved.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+    private func advancedControls(_ book: ComicBook) -> some View {
+        DisclosureGroup("Advanced") {
+            BookSearchIndexCard(book: book)
+            offlineInfoCard(book)
         }
         .padding()
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))

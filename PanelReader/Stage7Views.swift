@@ -92,7 +92,7 @@ struct CompactComicRecommendationBar: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                         if let year = recommendation.year {
-                            Text("• \(year)")
+                            Text("• \(String(year))")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
@@ -640,7 +640,7 @@ struct PanelWrappedView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 3) {
                             Text("PANEL").font(.caption.bold()).tracking(2).foregroundStyle(accentColor)
-                            Text("\(year) WRAPPED").font(.largeTitle.bold())
+                            Text("\(String(year)) WRAPPED").font(.largeTitle.bold())
                         }
                         Spacer()
                         Stepper("", value: $year, in: 2020...Calendar.current.component(.year, from: .now))

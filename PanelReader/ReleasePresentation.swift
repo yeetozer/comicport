@@ -56,7 +56,8 @@ struct DashboardBrowseView: View {
     @Binding var selection: DashboardSection
     private let groups: [(String, [DashboardSection])] = [
         ("Library", [.library, .series, .lists, .favorites, .recentAdded, .smartCollections, .saved]),
-        ("Reading", [.reading, .toRead, .completed, .recentRead, .readingOrder2, .notes, .myPanels, .journal, .history, .statistics, .wrapped, .characters, .achievements]),
+        ("Reading", [.reading, .toRead, .completed, .recentRead, .readingOrder2, .notes, .myPanels, .characters]),
+        ("You", [.achievements, .statistics, .journal, .wrapped, .history]),
         ("Tools", [.smartSearch, .libraryHealth, .libraryTools, .sourcesSync, .settings])
     ]
 
@@ -68,7 +69,7 @@ struct DashboardBrowseView: View {
                         ForEach(groups[index].1) { destination in
                             Button { selection = destination } label: {
                                 HStack {
-                                    Label(destination.title, systemImage: destination.icon)
+                                    Label(destination == .library ? String(localized: "All Comics") : destination == .reading ? String(localized: "Currently Reading") : destination.title, systemImage: destination.icon)
                                     Spacer()
                                     Image(systemName: "chevron.right").foregroundStyle(.tertiary)
                                 }
@@ -81,6 +82,8 @@ struct DashboardBrowseView: View {
                 }
             }
             .scrollContentBackground(.hidden)
+            .frame(maxWidth: 700)
+            .frame(maxWidth: .infinity)
             .navigationTitle("Browse")
         }
     }

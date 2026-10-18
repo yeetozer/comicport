@@ -667,7 +667,16 @@ private struct DashboardContent: View {
                 }
             }
         }
-        .padding(.bottom, 14)
+        .dashboardBottomClearance()
+    }
+}
+
+extension View {
+    /// Reserve the floating tab bar plus a 16-point breathing room for every destination.
+    func dashboardBottomClearance() -> some View {
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: ComicPortPlatform.isMac ? 16 : 96)
+        }
     }
 }
 
@@ -702,17 +711,23 @@ private struct DashboardHomeView: View {
                     ContentUnavailableView {
                         Label("Your next story starts here", systemImage: "books.vertical")
                     } description: {
-                        Text("Import your first comic with the Import button above. Want to try a free sample comic? Download a public-domain comic from Internet Archive, then import its PDF or CBZ file. ComicPort is free forever.")
+                        Text("Import a PDF, CBZ or CBR — free public-domain comics from the Internet Archive are a great place to start.")
                     } actions: {
-                        Button("Import your first comic") { NotificationCenter.default.post(name: Notification.Name("ComicPortImportRequested"), object: nil) }
+                        Button("Import a Comic") { NotificationCenter.default.post(name: Notification.Name("ComicPortImportRequested"), object: nil) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
                     }
                 } else {
                     if store.analytics.history.contains(where: { $0.pagesRead > 0 }) || store.libraryBooks.contains(where: { $0.currentPage > 0 || $0.readingStatus == .completed }) {
                         ReadingSummaryStrip()
-                    } else {
-                        ContentUnavailableView("Ready when you are", systemImage: "book.pages", description: Text("Open a comic below. Your reading progress and statistics will appear here."))
+
                     }
 
+                if continueBooks.isEmpty {
+                    DashboardPanel(title: "RECENTLY ADDED", trailing: "See All") { selection = .recentAdded } content: {
+                        RecentlyAddedGrid(books: recentBooks) { activeReader = DashboardReaderRoute(id: $0.id) }
+                    }
+                } else {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 16) {
                         DashboardPanel(title: "CONTINUE READING", trailing: "See All") {
@@ -748,6 +763,7 @@ private struct DashboardHomeView: View {
                     }
                 }
 
+                }
                 CompactComicFactBar()
                 CompactComicRecommendationBar()
 
@@ -1130,7 +1146,7 @@ private struct ReadingGoalDashboardCard: View {
                     Text("\(store.todayStat.pages) pages")
                         .font(.title3.bold())
                         .foregroundStyle(.green)
-                    Text("Hedef: \(store.analytics.dailyGoalPages) pages")
+                    Text("Goal: \(store.analytics.dailyGoalPages) pages")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ProgressView(value: store.todayGoalProgress)
@@ -1738,20 +1754,11 @@ private struct DashboardSettingsView: View {
                         Label("Backup & Restore", systemImage: "externaldrive.badge.icloud")
                     }
 
-                    if let occasion = ComicRecommendationOccasion.upcoming() {
-                        LabeledContent(
-                            "Recommendation mode",
-                            value: occasion.daysAway == 0
-                                ? occasion.title
-                                : "\(occasion.title) • \(occasion.daysAway) days"
-                        )
-                    } else {
-                        LabeledContent("Recommendation mode", value: "Personal")
-                    }
+
                 }
 
                 Section("Storage") {
-                    Label("Storage Optimizer", systemImage: "internaldrive")
+                    Text("Storage Optimizer")
                     Text("Optimize PDF and archive storage from a comic’s detail page. The original is preserved until the new copy is verified.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -1782,6 +1789,7 @@ private struct DashboardSettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }
@@ -2981,7 +2989,7 @@ private struct ComicPortSourcesSyncView: View {
                             .font(.headline)
 
                         Text(
-                            "Choose a normal folder, iCloud Drive folder or another macOS-synced folder."
+                            "Choose a normal folder, iCloud Drive folder or another synced folder."
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -3012,7 +3020,7 @@ private struct ComicPortSourcesSyncView: View {
             .foregroundStyle(.green)
 
             Text(
-                "ComicPort does not connect to a ComicPort server. Source scanning happens on this Mac. Sync Folder uses a folder you explicitly choose; if that folder is backed by iCloud Drive or another provider, macOS/provider software handles the network transfer."
+                "ComicPort does not connect to a ComicPort server. Source scanning happens on this \(ComicPortPlatform.isMac ? "Mac" : "iPad"). Sync Folder uses a folder you explicitly choose; if that folder is backed by iCloud Drive or another provider, your cloud provider’s app handles the network transfer."
             )
             .font(.caption)
             .foregroundStyle(.secondary)

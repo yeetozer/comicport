@@ -138,7 +138,7 @@ final class LibraryStore: ObservableObject {
     func bootstrap() async {
         guard !isBootstrapped, !bootstrapStarted else { return }
         bootstrapStarted = true
-        bootstrapMessage = "Kütüphane yükleniyor…"
+        bootstrapMessage = "Loading your library…"
 
         let paths = LibraryBootstrapPaths(
             documents: documentsURL,
@@ -980,7 +980,7 @@ final class LibraryStore: ObservableObject {
             let leftTitle = bookTitle(for: $0.bookID)
             let rightTitle = bookTitle(for: $1.bookID)
             if leftTitle == rightTitle { return $0.page < $1.page }
-            return leftTitle.localizedCaseInsensitiveCompare(rightTitle) == .orderedAscending
+            return leftTitle.localizedStandardCompare(rightTitle) == .orderedAscending
         }
     }
 

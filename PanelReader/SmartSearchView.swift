@@ -196,14 +196,14 @@ struct SmartSearchView: View {
 
     private var emptySearchIntro: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Neler arayabilirsin?")
+            Text("What can you search for?")
                 .font(.title2.bold())
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 12)], spacing: 12) {
-                example("Karakter", "Dick Grayson", "person.text.rectangle")
+                example("Character", "Dick Grayson", "person.text.rectangle")
                 example("Villain", "Joker", "theatermasks.fill")
-                example("Replik", "I am vengeance", "quote.bubble.fill")
-                example("Yer / kavram", "Gotham", "building.2.fill")
+                example("Quote", "I am vengeance", "quote.bubble.fill")
+                example("Place / concept", "Gotham", "building.2.fill")
             }
 
             if indexedBooks == 0 {
