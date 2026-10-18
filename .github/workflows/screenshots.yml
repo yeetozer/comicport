@@ -1,0 +1,53 @@
+name: iPad UI screenshots
+on:
+  workflow_dispatch:
+  push:
+    branches: [qa/screenshots]
+permissions:
+  contents: read
+jobs:
+  screenshots:
+    runs-on: macos-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest stable installed Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          XCODE_PATH=$(python3 - <<'PY'
+          import pathlib, re, subprocess
+          candidates = []
+          for path in pathlib.Path('/Applications').glob('Xcode*.app'):
+              result = subprocess.run([str(path / 'Contents/Developer/usr/bin/xcodebuild'), '-version'], capture_output=True, text=True)
+              match = re.search(r'^Xcode (\d+(?:\.\d+)*)\s*$', result.stdout, re.M)
+              if result.returncode == 0 and match and not re.search(r'beta|rc|preview', path.name, re.I):
+                  candidates.append((tuple(map(int, match.group(1).split('.'))), str(path)))
+          if not candidates:
+              raise SystemExit('No stable installed Xcode found')
+          print(max(candidates)[1])
+          PY
+          )
+          sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
+          xcodebuild -version | tee xcode-version.log
+          xcodebuild -list -project PanelReader.xcodeproj | tee project-list.log
+      - name: Fetch public-domain samples
+        run: |
+          mkdir -p samples
+          curl -fL --retry 4 --max-time 300 'https://archive.org/download/HenryAldrichComics1-22completeRun/Henry_Aldrich_Comics_012_1952_Bumblebee-man.cbz' -o samples/Henry_Aldrich_012.cbz
+          curl -fL --retry 4 --max-time 300 'https://archive.org/download/henry-aldrich-001_20260320/Henry_Aldrich_005.pdf' -o samples/Henry_Aldrich_005.pdf
+      - name: Unsigned Debug simulator build
+        run: |
+          set -o pipefail
+          xcodebuild -project PanelReader.xcodeproj -scheme PanelReader -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee simulator-build.log
+      - name: Capture production screens
+        run: python3 .github/screenshot-capture.py
+      - name: Upload screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comicport-ipad-screenshots
+          path: |
+            screenshots/
+            *.log
+          if-no-files-found: error

@@ -138,6 +138,14 @@ struct DashboardShellView: View {
             }
         }
         .preferredColorScheme(.dark)
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ScreenshotSection"))) { note in
+            if let route = note.object as? String {
+                selection = DashboardSection.allCases.first { String(describing: $0) == route } ?? .home
+                showImporter = route == "import"
+            }
+        }
+        #endif
         .tint(accentColor)
         .task(id: store.pendingQuickAction?.rawValue) {
             processQuickActionIfNeeded()
@@ -3262,3 +3270,54 @@ func shortDuration(_ seconds: TimeInterval) -> String {
 private func byteString(_ bytes: Int64) -> String {
     ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
 }
+
+#if DEBUG
+/// CI-only routing: uses production views and real asynchronous import, never mock books.
+struct ScreenshotRootView: View {
+    @EnvironmentObject var store: LibraryStore
+    let route: String
+    @State private var ready = false
+    @State private var section = DashboardSection.home
+    @State private var importing = false
+    private var book: ComicBook? {
+        store.books.first { route.hasPrefix("pdf") ? $0.type == .pdf : $0.type != .pdf }
+    }
+    var body: some View {
+        Group {
+            if !ready { ProgressView("Preparing screenshot…") }
+            else if route == "detail", let book { NavigationStack { BookDetailView(bookID: book.id) } }
+            else if route == "preview", let book { ComicQuickPreviewView(bookID: book.id) }
+            else if ["cbz", "cbz-hidden", "pdf", "guided", "reader-settings"].contains(route), let book {
+                ReaderView(bookID: book.id)
+            } else { DashboardShellView().onAppear {
+                NotificationCenter.default.post(name: Notification.Name("ScreenshotSection"), object: route)
+            } }
+        }
+        .preferredColorScheme(.dark)
+        .task {
+            let landscape = ProcessInfo.processInfo.environment["SCREENSHOT_ORIENTATION"] == "landscape"
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                UIDevice.current.setValue(landscape ? UIInterfaceOrientation.landscapeLeft.rawValue : UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: landscape ? .landscapeLeft : .portrait))
+            }
+            if route != "empty" && store.books.isEmpty {
+                let folder = store.documentsURL.appendingPathComponent("ScreenshotSamples")
+                for url in (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] { store.importFile(url) }
+                while store.importInProgressCount > 0 { try? await Task.sleep(for: .milliseconds(250)) }
+            }
+            store.setGuidedPanelModeEnabled(route == "guided")
+            if let book {
+                store.updateReaderSettings(bookID: book.id) { settings in
+                    settings.pageLayout = .single
+                    settings.fitMode = .fitWidth
+                    settings.autoHideControls = false
+                }
+            }
+            ready = true
+            try? await Task.sleep(for: .seconds(8))
+            let status = "route=\(route) books=\(store.books.count) error=\(store.importError ?? "none")"
+            try? status.write(to: store.documentsURL.appendingPathComponent("screenshot-ready.txt"), atomically: true, encoding: .utf8)
+        }
+    }
+}
+#endif

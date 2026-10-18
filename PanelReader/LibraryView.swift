@@ -13,8 +13,15 @@ struct LibraryView: View {
     var body: some View {
         ZStack(alignment: .top) {
             if store.isBootstrapped {
-                DashboardShellView()
-                    .transition(.opacity)
+                #if DEBUG
+                if let route = ProcessInfo.processInfo.environment["SCREENSHOT_ROUTE"] {
+                    ScreenshotRootView(route: route)
+                } else {
+                    DashboardShellView().transition(.opacity)
+                }
+                #else
+                DashboardShellView().transition(.opacity)
+                #endif
 
                 if let achievement = store.currentAchievementBanner {
                     AchievementBanner(achievement: achievement)
