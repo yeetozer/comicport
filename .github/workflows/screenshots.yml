@@ -34,8 +34,8 @@ jobs:
       - name: Fetch public-domain samples
         run: |
           mkdir -p samples
-          curl -fL --retry 4 --max-time 300 'https://archive.org/download/HenryAldrichComics1-22completeRun/Henry_Aldrich_Comics_012_1952_Bumblebee-man.cbz' -o samples/Henry_Aldrich_012.cbz
-          curl -fL --retry 4 --max-time 300 'https://archive.org/download/henry-aldrich-001_20260320/Henry_Aldrich_005.pdf' -o samples/Henry_Aldrich_005.pdf
+          curl -fL --retry 6 --retry-all-errors --retry-delay 5 --max-time 300 'https://archive.org/download/HenryAldrichComics1-22completeRun/Henry_Aldrich_Comics_012_1952_Bumblebee-man.cbz' -o samples/Henry_Aldrich_012.cbz
+          curl -fL --retry 6 --retry-all-errors --retry-delay 5 --max-time 300 'https://archive.org/download/henry-aldrich-001_20260320/Henry_Aldrich_005.pdf' -o samples/Henry_Aldrich_005.pdf
       - name: Unsigned Debug simulator build
         run: |
           set -o pipefail
