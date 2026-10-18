@@ -28,6 +28,10 @@ final class DataSafetyTests: XCTestCase {
                                addedAt: Date(timeIntervalSince1970: 200))
         let five = ComicBook(title: "Henry_Aldrich_005", storedFileName: "5.pdf", type: .pdf, pageCount: 10,
                              addedAt: Date(timeIntervalSince1970: 100))
+        try FileManager.default.createDirectory(at: store.booksURL, withIntermediateDirectories: true)
+        for book in [twelve, five] {
+            try Data().write(to: store.booksURL.appendingPathComponent(book.storedFileName))
+        }
         try store.restoreBackupData(JSONEncoder().encode(payload(books: [twelve, five])))
         XCTAssertEqual(store.libraryBooks.map(\.id), [five.id, twelve.id])
         XCTAssertEqual(store.recentlyAdded.map(\.id), [twelve.id, five.id])
