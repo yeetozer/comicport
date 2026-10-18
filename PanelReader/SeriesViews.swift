@@ -154,13 +154,13 @@ struct SeriesDetailView: View {
                                         .foregroundStyle(.primary)
                                         .lineLimit(2)
                                     HStack {
-                                        Text("\(book.progressPercent)%")
+                                        Text("\(book.displayProgressPercent)%")
                                         if let volume = parsed.volume { Text("• Vol. \(volume)") }
                                         if parsed.edition != .standard { Text("• \(parsed.edition.rawValue)") }
                                     }
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
-                                    ProgressView(value: book.progress)
+                                    ProgressView(value: book.displayProgress)
                                 }
                                 Spacer()
                                 Image(systemName: book.readingStatus == .completed ? "checkmark.circle.fill" : "chevron.right")
@@ -299,7 +299,7 @@ struct StoryArcDetailView: View {
                                             .background(.quaternary, in: Circle())
                                         VStack(alignment: .leading) {
                                             Text(book.displayTitle)
-                                            Text("\(book.progressPercent)% read")
+                                            Text("\(book.displayProgressPercent)% read")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }

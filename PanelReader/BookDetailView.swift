@@ -107,8 +107,8 @@ struct BookDetailView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text(info?.comicInfoPresent == true ? info!.displayTitle : book.displayTitle).font(.largeTitle.bold()).lineLimit(2).truncationMode(.tail)
                 Label("\(book.pageCount) pages", systemImage: "book.pages")
-                Label("\(book.progressPercent)% read · page \(min(book.currentPage + 1, max(1, book.pageCount)))/\(book.pageCount)", systemImage: "chart.line.uptrend.xyaxis")
-                ProgressView(value: book.progress).frame(maxWidth: 320)
+                Label("\(book.displayProgressPercent)% read · page \(min(book.currentPage + 1, max(1, book.pageCount)))/\(book.pageCount)", systemImage: "chart.line.uptrend.xyaxis")
+                ProgressView(value: book.displayProgress).frame(maxWidth: 320)
                 if let date = book.lastReadAt { Label { Text("Last read ") + Text(date, style: .relative) } icon: { Image(systemName: "clock") } }
                 Spacer(minLength: 0)
             }
@@ -349,7 +349,7 @@ struct BookDetailView: View {
 
                 Text(info.confidenceNote).font(.caption).foregroundStyle(.secondary)
             } else {
-                ContentUnavailableView("Not analyzed yet", systemImage: "text.viewfinder", description: Text("Tap Analyze. The comic stays on your device; ComicInfo.xml, OCR and local matching use no API or web service."))
+                ContentUnavailableView("Not analyzed yet", systemImage: "text.viewfinder", description: Text("Tap Analyze. The comic stays on your \(ComicPortPlatform.displayName); ComicInfo.xml, OCR and local matching use no API or web service."))
             }
         }
         .padding()

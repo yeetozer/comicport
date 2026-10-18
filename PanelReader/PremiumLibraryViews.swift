@@ -39,9 +39,9 @@ private struct ContinueCard: View {
                     ComicCover(book: book).frame(width: 110, height: 165).clipShape(RoundedRectangle(cornerRadius: 14))
                     VStack(alignment: .leading, spacing: 8) {
                         Text(book.displayTitle).font(.title3.bold()).foregroundStyle(.primary).lineLimit(2)
-                        Text("\(book.progressPercent)% read • page \(min(book.currentPage + 1, max(1, book.pageCount))) of \(book.pageCount)")
+                        Text("\(book.displayProgressPercent)% read • page \(min(book.currentPage + 1, max(1, book.pageCount))) of \(book.pageCount)")
                             .foregroundStyle(.secondary)
-                        ProgressView(value: book.progress).frame(maxWidth: 320)
+                        ProgressView(value: book.displayProgress).frame(maxWidth: 320)
                         Label("Resume", systemImage: "play.fill").font(.headline).foregroundStyle(.primary)
                     }
                     Spacer()
@@ -96,9 +96,9 @@ private struct PremiumBookCard: View {
                 if book.favorite { Image(systemName: "heart.fill").foregroundStyle(.white).padding(8).background(.black.opacity(0.55), in: Circle()).padding(8) }
             }
             Text(book.displayTitle).font(.headline).foregroundStyle(.primary).lineLimit(2)
-            HStack { Text("\(book.progressPercent)%"); Spacer(); Image(systemName: book.readingStatus.systemImage) }
+            HStack { Text("\(book.displayProgressPercent)%"); Spacer(); Image(systemName: book.readingStatus.systemImage) }
                 .font(.caption).foregroundStyle(.secondary)
-            ProgressView(value: book.progress)
+            ProgressView(value: book.displayProgress)
             if book.rating > 0 {
                 HStack(spacing: 2) { ForEach(1...5, id: \.self) { n in Image(systemName: n <= book.rating ? "star.fill" : "star") } }
                     .font(.caption2).foregroundStyle(.secondary)

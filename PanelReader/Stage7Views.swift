@@ -415,7 +415,7 @@ struct FullComicCalendarView: View {
             }
 
             HStack {
-                ForEach(["Pzt","Sal","Wed","Per","Cum","Cmt","Paz"], id: \.self) { day in
+                ForEach(["Mon","Tue","Wed","Thu","Fri","Sat","Sun"], id: \.self) { day in
                     Text(day).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
             }
@@ -501,7 +501,7 @@ struct FullComicCalendarView: View {
                         }
                     }
                     ToolbarItem(placement: .confirmationAction) {
-                        Button("Git") {
+                        Button("Go") {
                             jumpTo(jumpDate)
                             showJumpPicker = false
                         }
@@ -583,7 +583,7 @@ struct DayReadingDetailView: View {
                 Section("Summary") {
                     LabeledContent("Pages read", value: "\(pages)")
                     LabeledContent("Reading time", value: shortDuration(seconds))
-                    LabeledContent("Oturum", value: "\(sessions.count)")
+                    LabeledContent("Sessions", value: "\(sessions.count)")
                 }
 
                 if !events.isEmpty {
@@ -603,7 +603,7 @@ struct DayReadingDetailView: View {
                 }
 
                 if !sessions.isEmpty {
-                    Section("Okunanlar") {
+                    Section("Read") {
                         ForEach(sessions) { entry in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(store.bookTitle(for: entry.bookID)).font(.headline)
@@ -615,7 +615,7 @@ struct DayReadingDetailView: View {
                 }
             }
             .navigationTitle(date.formatted(date: .long, time: .omitted))
-            .toolbar { Button("Kapat") { dismiss() } }
+            .toolbar { Button("Close") { dismiss() } }
         }
     }
 
@@ -651,7 +651,7 @@ struct PanelWrappedView: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 14)], spacing: 14) {
                         wrappedCard("Total Pages", "\(summary.pages)", "book.pages.fill", .green)
                         wrappedCard("Reading Time", shortDuration(summary.seconds), "clock.fill", .purple)
-                        wrappedCard("Tamamlanan", "\(summary.completedBooks)", "checkmark.circle.fill", .orange)
+                        wrappedCard("Completed", "\(summary.completedBooks)", "checkmark.circle.fill", .orange)
                         wrappedCard("Active Days", "\(summary.activeDays)", "calendar", accentColor)
                         wrappedCard("Longest Streak", "\(summary.longestStreak) days", "flame.fill", .red)
                         wrappedCard("Achievements", "\(summary.achievements)", "trophy.fill", .yellow)

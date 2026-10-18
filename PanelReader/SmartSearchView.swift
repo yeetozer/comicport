@@ -173,7 +173,7 @@ struct SmartSearchView: View {
                         .tint(accentColor)
 
                     HStack {
-                        Text("Sayfa \(progress.page)/\(max(1, progress.totalPages))")
+                        Text("Page \(progress.page)/\(max(1, progress.totalPages))")
                         Spacer()
                         Text("%\(Int((progress.overallFraction * 100).rounded()))")
                     }
@@ -269,7 +269,7 @@ struct SmartSearchView: View {
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if let page = hit.page {
-                                    Text("• Sayfa \(page + 1)")
+                                    Text("• Page \(page + 1)")
                                         .font(.caption.bold())
                                         .foregroundStyle(accentColor)
                                 }

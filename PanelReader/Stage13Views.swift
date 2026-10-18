@@ -51,7 +51,7 @@ struct LibraryHealthView: View {
                     }
 
                     if let cleanupMessage {
-                        Label(cleanupMessage, systemImage: "checkmark.circle.fill")
+                        Label(ComicPortRelease.copy(cleanupMessage), systemImage: "checkmark.circle.fill")
                             .font(.subheadline)
                             .foregroundStyle(.green)
                     }
@@ -151,8 +151,8 @@ struct LibraryHealthView: View {
 
     private func summary(_ snapshot: LibraryHealthSnapshot) -> some View {
         HStack(spacing: 12) {
-            healthStat("\(snapshot.availableBooks)/\(snapshot.totalBooks)", "cihazda", "internaldrive.fill")
-            healthStat("\(snapshot.criticalCount)", "kritik", "exclamationmark.octagon.fill")
+            healthStat("\(snapshot.availableBooks)/\(snapshot.totalBooks)", "on device", "internaldrive.fill")
+            healthStat("\(snapshot.criticalCount)", "critical", "exclamationmark.octagon.fill")
             healthStat("\(snapshot.warningCount)", "warnings", "exclamationmark.triangle.fill")
             healthStat(LibraryHealthScanner.formatBytes(snapshot.totalBytes), "file size", "externaldrive.fill")
         }
@@ -183,7 +183,7 @@ struct LibraryHealthView: View {
             .padding(.top, 20)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Bulunanlar").font(.title2.bold())
+                Text("Findings").font(.title2.bold())
                 ForEach(all) { issue in
                     issueRow(issue)
                 }
@@ -200,7 +200,7 @@ struct LibraryHealthView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(issue.title).font(.headline)
-                Text(issue.detail).font(.subheadline).foregroundStyle(.secondary)
+                Text(ComicPortRelease.copy(issue.detail)).font(.subheadline).foregroundStyle(.secondary)
 
                 HStack {
                     if issue.kind == .missingCover, let bookID = issue.bookID {
@@ -359,9 +359,9 @@ struct SmartReadingOrder2View: View {
                     let duplicateCount = series.reduce(0) { $0 + SeriesService.duplicateIssueNumbers(in: $1, from: store.libraryBooks).count }
 
                     HStack(spacing: 12) {
-                        status("\(series.count)", "seri", "books.vertical.fill")
+                        status("\(series.count)", "series", "books.vertical.fill")
                         status("\(missingCount)", "missing issues", "number.square.fill")
-                        status("\(duplicateCount)", "tekrar", "square.stack.3d.up.fill")
+                        status("\(duplicateCount)", "duplicates", "square.stack.3d.up.fill")
                         status("\(store.storyArcs.count)", "custom order", "point.3.connected.trianglepath.dotted")
                     }
 
@@ -382,9 +382,9 @@ struct SmartReadingOrder2View: View {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(item.title).font(.headline).foregroundStyle(.primary)
                                         HStack(spacing: 8) {
-                                            Text("\(item.bookIDs.count) kitap")
-                                            if !missing.isEmpty { Text("• \(missing.count) eksik") }
-                                            if !duplicates.isEmpty { Text("• \(duplicates.count) tekrar") }
+                                            Text("\(item.bookIDs.count) comics")
+                                            if !missing.isEmpty { Text("• \(missing.count) missing") }
+                                            if !duplicates.isEmpty { Text("• \(duplicates.count) duplicates") }
                                         }
                                         .font(.caption)
                                         .foregroundStyle(.secondary)

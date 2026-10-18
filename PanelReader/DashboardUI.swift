@@ -841,7 +841,7 @@ private struct ReadingSummaryStrip: View {
 
             let total = books.reduce(0) { $0 + max(0, $1.pageCount) }
             let current = books.reduce(0) { partial, book in
-                partial + (book.currentPage > 0 ? min(book.currentPage + 1, max(0, book.pageCount)) : 0)
+                partial + Int((book.displayProgress * Double(max(0, book.pageCount))).rounded())
             }
             let progress = total == 0 ? 0 : min(1, Double(current) / Double(total))
             return (pages, seconds, week, progress)
@@ -897,7 +897,7 @@ private struct OverallProgressTile: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text("Overall Progress").font(.caption).foregroundStyle(.secondary)
-                Text("%\(Int((progress * 100).rounded()))").font(.title2.bold())
+                Text("\(Int((progress * 100).rounded()))%").font(.title2.bold())
                 Text("of your library").font(.caption2).foregroundStyle(.tertiary)
             }
         }
@@ -1031,11 +1031,11 @@ private struct DashboardComicCard: View {
                 .frame(width: width, alignment: .leading)
 
             if showProgress {
-                Text("%\(book.progressPercent) okundu")
+                Text("\(book.displayProgressPercent)% read")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                ProgressView(value: book.progress)
-                    .tint(accentColor)
+                ProgressView(value: book.displayProgress)
+                    .tint(book.displayProgress == 0 ? Color.secondary : accentColor)
                     .frame(width: width)
             }
         }
@@ -1069,7 +1069,7 @@ private struct DashboardMiniComicCard: View {
                     .font(.caption.bold())
                     .foregroundStyle(.white)
                     .lineLimit(2)
-                Text("%\(book.progressPercent)")
+                Text("\(book.displayProgressPercent)%")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -1257,7 +1257,7 @@ private struct ReadingCalendarCard: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Kapat") {
+                        Button("Close") {
                             showFullCalendar = false
                         }
                     }
@@ -1560,7 +1560,7 @@ private struct DashboardStatisticsView: View {
                     DetailStatCard(icon: "book.pages.fill", title: "Pages Read", value: formatNumber(totalPages), tint: .green)
                     DetailStatCard(icon: "clock.fill", title: "Total Time", value: shortDuration(totalSeconds), tint: .purple)
                     DetailStatCard(icon: "rectangle.stack.fill", title: "Reading Sessions", value: "\(sessions)", tint: .blue)
-                    DetailStatCard(icon: "checkmark.circle.fill", title: "Tamamlanan", value: "\(store.books(with: .completed).count)", tint: .orange)
+                    DetailStatCard(icon: "checkmark.circle.fill", title: "Completed", value: "\(store.books(with: .completed).count)", tint: .orange)
                     DetailStatCard(icon: "heart.fill", title: "Favori", value: "\(store.libraryBooks.filter { $0.favorite }.count)", tint: .pink)
                     DetailStatCard(icon: "trophy.fill", title: "Achievements", value: "\(store.achievementProfile.unlockedIDs.count) / \(AchievementCatalog.all.count)", tint: .yellow)
                 }
@@ -1611,7 +1611,7 @@ private struct DashboardHistoryView: View {
                     ForEach(store.analytics.history) { entry in
                         VStack(alignment: .leading, spacing: 5) {
                             Text(store.bookTitle(for: entry.bookID)).font(.headline)
-                            Text("Sayfa \(entry.startPage + 1) → \(entry.endPage + 1) • \(entry.pagesRead) pages")
+                            Text("Page \(entry.startPage + 1) → \(entry.endPage + 1) • \(entry.pagesRead) pages")
                                 .font(.subheadline).foregroundStyle(.secondary)
                             Text("\(entry.date.formatted(date: .abbreviated, time: .shortened)) • \(shortDuration(entry.seconds))")
                                 .font(.caption).foregroundStyle(.tertiary)
@@ -1648,7 +1648,7 @@ private struct DashboardSavedView: View {
                                     Text(book.displayTitle).font(.headline)
                                     Text(book.fileAvailable ? (book.isArchived ? "Archived" : "Outside Library") : "Not on this device")
                                         .font(.caption).foregroundStyle(.secondary)
-                                    Text("%\(book.progressPercent) • \(book.readingStatus.rawValue)")
+                                    Text("\(book.displayProgressPercent)% • \(book.readingStatus.rawValue)")
                                         .font(.caption2).foregroundStyle(.tertiary)
                                 }
                                 Spacer()
@@ -3072,11 +3072,11 @@ private struct ComicQuickPreviewView: View {
                             )
 
                             Label(
-                                "\(book.progressPercent)% read",
+                                "\(book.displayProgressPercent)% read",
                                 systemImage: "chart.line.uptrend.xyaxis"
                             )
 
-                            ProgressView(value: book.progress)
+                            ProgressView(value: book.displayProgress)
 
                             if let info = store.loadOfflineInfo(
                                 bookID: book.id

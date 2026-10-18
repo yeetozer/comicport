@@ -23,6 +23,15 @@ enum ComicDisplayTitle {
 
 extension ComicBook {
     var displayTitle: String { ComicDisplayTitle.clean(title) }
+
+    /// Do not present an unopened comic as one page read.
+    var displayProgress: Double {
+        if readingStatus == .completed { return 1 }
+        guard currentPage > 0 || lastReadAt != nil else { return 0 }
+        return progress
+    }
+
+    var displayProgressPercent: Int { Int((displayProgress * 100).rounded()) }
 }
 
 enum ComicPortRelease {

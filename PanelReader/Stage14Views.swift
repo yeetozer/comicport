@@ -85,7 +85,7 @@ struct CompletionJournalEditor: View {
                             Picker("Favorite panel", selection: $favoritePanelID) {
                                 Text("None").tag(Optional<UUID>.none)
                                 ForEach(bookPanels) { panel in
-                                    Text("Sayfa \(panel.page + 1)").tag(Optional(panel.id))
+                                    Text("Page \(panel.page + 1)").tag(Optional(panel.id))
                                 }
                             }
                             .pickerStyle(.menu)
@@ -105,7 +105,7 @@ struct CompletionJournalEditor: View {
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Kaydet") {
+                    Button("Save") {
                         store.saveReadingJournalEntry(
                             bookID: bookID,
                             completedAt: completedAt,
@@ -204,9 +204,9 @@ struct ReadingJournalView: View {
 
             HStack(spacing: 10) {
                 stat("\(summary.totalEntries)", "entries")
-                stat(summary.averageRating > 0 ? String(format: "%.1f ★", summary.averageRating) : "—", "ortalama")
+                stat(summary.averageRating > 0 ? String(format: "%.1f ★", summary.averageRating) : "—", "average")
                 stat("\(summary.rereadCount)", "read again")
-                stat("\(summary.notesCount)", "not")
+                stat("\(summary.notesCount)", "notes")
             }
         }
         .padding(18)
@@ -332,7 +332,7 @@ private struct JournalEntryDetailView: View {
                        let panel = store.savedPanels.first(where: { $0.id == panelID }) {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("Favorite panel").font(.headline)
-                            Text("My Panels • Sayfa \(panel.page + 1)")
+                            Text("My Panels • Page \(panel.page + 1)")
                                 .foregroundStyle(.secondary)
                         }
                     }
@@ -343,7 +343,7 @@ private struct JournalEntryDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Kapat") { dismiss() }
+                    Button("Close") { dismiss() }
                 }
                 ToolbarItem(placement: .destructiveAction) {
                     Button(role: .destructive) {
