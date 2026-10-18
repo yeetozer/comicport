@@ -69,11 +69,11 @@ private struct SeriesCard: View {
                 LinearGradient(colors: [.clear, .black.opacity(0.88)], startPoint: .center, endPoint: .bottom)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(series.title)
+                    Text(ComicDisplayTitle.series(series.title))
                         .font(.title3.bold())
                         .foregroundStyle(.white)
                         .lineLimit(2)
-                    Text("\(books.count) issues • \(completed) completed")
+                    Text("\(ComicDisplayTitle.issues(books.count)) • \(completed) completed")
                         .font(.caption)
                         .foregroundStyle(.white.opacity(0.78))
                 }
@@ -103,8 +103,8 @@ struct SeriesDetailView: View {
             VStack(alignment: .leading, spacing: 22) {
                 HStack {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(series.title).font(.largeTitle.bold())
-                        Text("\(books.count) issues • \(completed) completed • \(max(0, books.count - completed)) remaining")
+                        Text(ComicDisplayTitle.series(series.title)).font(.largeTitle.bold())
+                        Text("\(ComicDisplayTitle.issues(books.count)) • \(completed) completed • \(max(0, books.count - completed)) remaining")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -149,7 +149,7 @@ struct SeriesDetailView: View {
                                     Text(parsed.issueNumber.map { "Issue #\(formatIssue($0))" } ?? "Part \(index + 1)")
                                         .font(.caption.bold())
                                         .foregroundStyle(.secondary)
-                                    Text(book.title)
+                                    Text(book.displayTitle)
                                         .font(.headline)
                                         .foregroundStyle(.primary)
                                         .lineLimit(2)
@@ -175,7 +175,7 @@ struct SeriesDetailView: View {
             }
             .padding()
         }
-        .navigationTitle(series.title)
+        .navigationTitle(ComicDisplayTitle.series(series.title))
         .navigationBarTitleDisplayMode(.inline)
     }
 }
@@ -245,7 +245,7 @@ private struct StoryArcCreatorView: View {
                         } label: {
                             HStack {
                                 Image(systemName: selection.contains(book.id) ? "checkmark.circle.fill" : "circle")
-                                Text(book.title).foregroundStyle(.primary)
+                                Text(book.displayTitle).foregroundStyle(.primary)
                             }
                         }
                     }
@@ -298,7 +298,7 @@ struct StoryArcDetailView: View {
                                             .frame(width: 28, height: 28)
                                             .background(.quaternary, in: Circle())
                                         VStack(alignment: .leading) {
-                                            Text(book.title)
+                                            Text(book.displayTitle)
                                             Text("\(book.progressPercent)% read")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)

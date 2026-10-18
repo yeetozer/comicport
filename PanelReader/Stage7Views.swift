@@ -16,7 +16,7 @@ struct CompactComicFactBar: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
-                    Text("BİLİYOR MUYDUN?")
+                    Text("DID YOU KNOW?")
                         .font(.caption2.bold())
                         .foregroundStyle(accentColor)
                     Text(fact.category)
@@ -42,7 +42,7 @@ struct CompactComicFactBar: View {
                     .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 9))
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Yeni bilgi göster")
+            .accessibilityLabel("Show another fact")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -83,7 +83,7 @@ struct CompactComicRecommendationBar: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
-                    Text(recommendation?.occasionTitle == nil ? "SANA ÖNERİ" : "ÖZEL GÜN ÖNERİSİ")
+                    Text(recommendation?.occasionTitle == nil ? "RECOMMENDED FOR YOU" : "EVENT RECOMMENDATION")
                         .font(.caption2.bold())
                         .foregroundStyle(accentColor)
 
@@ -122,11 +122,11 @@ struct CompactComicRecommendationBar: View {
                         }
                     }
                 } else if loading {
-                    Text("Kütüphanene göre öneri hazırlanıyor…")
+                    Text("Finding a recommendation for your library…")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Öneri oluşturmak için birkaç çizgi roman ekle veya puanla.")
+                    Text("Add or rate a few comics to get recommendations.")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.secondary)
                 }
@@ -143,7 +143,7 @@ struct CompactComicRecommendationBar: View {
             }
             .buttonStyle(.plain)
             .disabled(recommendations.count < 2)
-            .accessibilityLabel("Yeni çizgi roman önerisi göster")
+            .accessibilityLabel("Show another recommendation")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -243,17 +243,17 @@ struct Stage7StatisticsView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("İstatistikler").font(.largeTitle.bold())
+                    Text("Statistics").font(.largeTitle.bold())
 
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 14)], spacing: 14) {
-                        insightCard("Mevcut Seri", "\(currentStreak) gün", "flame.fill", .orange)
-                        insightCard("En Uzun Seri", "\(bestStreak) gün", "bolt.fill", .yellow)
-                        insightCard("Aktif Gün", "\(store.analytics.daily.values.filter { $0.pages > 0 }.count)", "calendar", accentColor)
-                        insightCard("Toplam Oturum", "\(store.analytics.history.count)", "rectangle.stack.fill", .purple)
+                        insightCard("Current Streak", "\(currentStreak) days", "flame.fill", .orange)
+                        insightCard("Longest Streak", "\(bestStreak) days", "bolt.fill", .yellow)
+                        insightCard("Active Days", "\(store.analytics.daily.values.filter { $0.pages > 0 }.count)", "calendar", accentColor)
+                        insightCard("Total Sessions", "\(store.analytics.history.count)", "rectangle.stack.fill", .purple)
                     }
 
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("Son 7 Gün").font(.title2.bold())
+                        Text("Last 7 Days").font(.title2.bold())
                         HStack(alignment: .bottom, spacing: 10) {
                             ForEach(Array(week.enumerated()), id: \.offset) { _, item in
                                 VStack(spacing: 6) {
@@ -316,7 +316,7 @@ struct YearReadingHeatmap: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Son 365 Gün").font(.title2.bold())
+            Text("Last 365 Days").font(.title2.bold())
             ScrollView(.horizontal, showsIndicators: false) {
                 let weeks = stride(from: 0, to: days.count, by: 7).map {
                     Array(days[$0..<min($0 + 7, days.count)])
@@ -384,7 +384,7 @@ struct FullComicCalendarView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 10) {
-                Text("Okuma & Çizgi Roman Takvimi").font(.title2.bold())
+                Text("Reading Calendar").font(.title2.bold())
                 Spacer()
 
                 Button {
@@ -404,7 +404,7 @@ struct FullComicCalendarView: View {
                 Button {
                     jumpTo(.now)
                 } label: {
-                    Text("Bugün")
+                    Text("Today")
                 }
                 .buttonStyle(.bordered)
 
@@ -415,7 +415,7 @@ struct FullComicCalendarView: View {
             }
 
             HStack {
-                ForEach(["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"], id: \.self) { day in
+                ForEach(["Pzt","Sal","Wed","Per","Cum","Cmt","Paz"], id: \.self) { day in
                     Text(day).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                 }
             }
@@ -475,28 +475,28 @@ struct FullComicCalendarView: View {
         .sheet(isPresented: $showJumpPicker) {
             NavigationStack {
                 VStack(alignment: .leading, spacing: 18) {
-                    Text("İstediğin tarihe git")
+                    Text("Jump to a date")
                         .font(.title2.bold())
 
                     DatePicker(
-                        "Tarih",
+                        "Date",
                         selection: $jumpDate,
                         displayedComponents: [.date]
                     )
                     .datePickerStyle(.graphical)
 
-                    Text("Bir gün seçtiğinde takvim o ay ve yıla atlar. Geçmiş okuma kayıtlarını ve gelecekteki çizgi roman özel günlerini aynı takvimde görebilirsin.")
+                    Text("Choose a date to jump to its month and year. Browse your reading history and upcoming comic events in one calendar.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
 
                     Spacer()
                 }
                 .padding(20)
-                .navigationTitle("Tarih Seç")
+                .navigationTitle("Choose Date")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
-                        Button("Vazgeç") {
+                        Button("Cancel") {
                             showJumpPicker = false
                         }
                     }
@@ -580,14 +580,14 @@ struct DayReadingDetailView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section("Özet") {
-                    LabeledContent("Okunan sayfa", value: "\(pages)")
-                    LabeledContent("Okuma süresi", value: shortDuration(seconds))
+                Section("Summary") {
+                    LabeledContent("Pages read", value: "\(pages)")
+                    LabeledContent("Reading time", value: shortDuration(seconds))
                     LabeledContent("Oturum", value: "\(sessions.count)")
                 }
 
                 if !events.isEmpty {
-                    Section("Çizgi Roman Takvimi") {
+                    Section("Comic Calendar") {
                         ForEach(events) { event in
                             HStack(alignment: .top, spacing: 12) {
                                 Image(systemName: event.kind.icon).foregroundStyle(event.kind.color)
@@ -607,7 +607,7 @@ struct DayReadingDetailView: View {
                         ForEach(sessions) { entry in
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(store.bookTitle(for: entry.bookID)).font(.headline)
-                                Text("\(entry.pagesRead) sayfa • \(shortDuration(entry.seconds))")
+                                Text("\(entry.pagesRead) pages • \(shortDuration(entry.seconds))")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
@@ -649,27 +649,27 @@ struct PanelWrappedView: View {
 
                     wrappedHero
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 14)], spacing: 14) {
-                        wrappedCard("Toplam Sayfa", "\(summary.pages)", "book.pages.fill", .green)
-                        wrappedCard("Okuma Süresi", shortDuration(summary.seconds), "clock.fill", .purple)
+                        wrappedCard("Total Pages", "\(summary.pages)", "book.pages.fill", .green)
+                        wrappedCard("Reading Time", shortDuration(summary.seconds), "clock.fill", .purple)
                         wrappedCard("Tamamlanan", "\(summary.completedBooks)", "checkmark.circle.fill", .orange)
-                        wrappedCard("Aktif Gün", "\(summary.activeDays)", "calendar", accentColor)
-                        wrappedCard("En Uzun Streak", "\(summary.longestStreak) gün", "flame.fill", .red)
-                        wrappedCard("Başarım", "\(summary.achievements)", "trophy.fill", .yellow)
+                        wrappedCard("Active Days", "\(summary.activeDays)", "calendar", accentColor)
+                        wrappedCard("Longest Streak", "\(summary.longestStreak) days", "flame.fill", .red)
+                        wrappedCard("Achievements", "\(summary.achievements)", "trophy.fill", .yellow)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("Yılın Favorileri").font(.title2.bold())
-                        wrappedLine("En çok okunan karakter", summary.topCharacter, "person.fill")
-                        wrappedLine("En çok okunan seri", summary.topSeries, "books.vertical.fill")
-                        wrappedLine("En çok okunan yayıncı", summary.topPublisher, "building.2.fill")
-                        wrappedLine("En yoğun ay", summary.busiestMonthName, "calendar.badge.clock")
-                        wrappedLine("En uzun oturum", shortDuration(summary.longestSession), "hourglass")
+                        Text("Favorites of the Year").font(.title2.bold())
+                        wrappedLine("Most-read character", summary.topCharacter, "person.fill")
+                        wrappedLine("Most-read series", summary.topSeries, "books.vertical.fill")
+                        wrappedLine("Most-read publisher", summary.topPublisher, "building.2.fill")
+                        wrappedLine("Busiest month", summary.busiestMonthName, "calendar.badge.clock")
+                        wrappedLine("Longest session", shortDuration(summary.longestSession), "hourglass")
                     }
                     .padding()
                     .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 16))
 
                     ShareLink(item: summary.shareText) {
-                        Label("Wrapped Özetini Paylaş", systemImage: "square.and.arrow.up")
+                        Label("Share Your Year in Review", systemImage: "square.and.arrow.up")
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 13)
@@ -685,11 +685,11 @@ struct PanelWrappedView: View {
 
     private var wrappedHero: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(summary.pages > 0 ? "Bu yıl paneller arasında kayboldun." : "Bu yılın hikâyesi henüz başlamadı.")
+            Text(summary.pages > 0 ? "A year of stories, one panel at a time." : "This year’s story has not started yet.")
                 .font(.title2.bold())
             Text(summary.pages > 0
-                 ? "\(summary.sessions) oturumda \(summary.pages) sayfa okudun. En yoğun ayın \(summary.busiestMonthName)."
-                 : "Okumaya başladığında yıllık özetin burada oluşacak.")
+                 ? "You read \(summary.pages) pages across \(summary.sessions) sessions. Your busiest month was \(summary.busiestMonthName)."
+                 : "Start reading to build your year in review.")
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

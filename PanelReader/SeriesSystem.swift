@@ -112,9 +112,9 @@ enum ReadingOrder2Service {
             } else if let tag = sharedTags.sorted().first {
                 reason = "Ortak tema: \(display(tag))"
             } else if let creator = sharedCreators.sorted().first {
-                reason = "Ortak yaratıcı: \(display(creator))"
+                reason = "Shared creator: \(display(creator))"
             } else {
-                reason = "Aynı yayın evrenine yakın"
+                reason = "Related publishing universe"
             }
 
             output.append(

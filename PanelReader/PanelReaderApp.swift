@@ -8,6 +8,7 @@ struct PanelReaderApp: App {
     var body: some Scene {
         WindowGroup {
             LibraryView()
+                .environment(\.locale, Locale(identifier: "en_US"))
                 .environmentObject(store)
                 .environmentObject(theme)
                 .environment(\.panelAccentColor, theme.accentColor)

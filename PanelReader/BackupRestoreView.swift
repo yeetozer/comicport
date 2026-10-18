@@ -27,16 +27,16 @@ struct BackupRestoreView: View {
 
                 HStack(alignment: .top, spacing: 14) {
                     actionCard(
-                        title: "Yedek Oluştur",
-                        detail: "Profilini tek bir .panelbackup dosyasına aktar.",
+                        title: "Create Backup",
+                        detail: "Export your profile to a single .panelbackup file.",
                         icon: "externaldrive.badge.plus",
                         button: "Backup",
                         action: createBackup
                     )
 
                     actionCard(
-                        title: "Yedeği Geri Yükle",
-                        detail: "Mevcut verileri silmeden yedekteki profil verilerini birleştir.",
+                        title: "Restore Backup",
+                        detail: "Merge profile data from a backup without deleting existing data.",
                         icon: "arrow.counterclockwise.icloud",
                         button: "Restore",
                         action: { showRestoreWarning = true }
@@ -70,7 +70,7 @@ struct BackupRestoreView: View {
                     Color.black.opacity(0.36).ignoresSafeArea()
                     VStack(spacing: 13) {
                         ProgressView().controlSize(.large).tint(.white)
-                        Text("ComicPort hazırlanıyor…")
+                        Text("Preparing ComicPort…")
                             .font(.headline)
                     }
                     .padding(24)
@@ -87,9 +87,9 @@ struct BackupRestoreView: View {
             switch result {
             case .success:
                 UserDefaults.standard.set(Date.now, forKey: "PanelReader.lastBackupDate")
-                setStatus("Yedek başarıyla kaydedildi.", error: false)
+                setStatus("Backup saved.", error: false)
             case .failure(let error):
-                setStatus("Yedek kaydedilemedi: \(error.localizedDescription)", error: true)
+                setStatus("Could not save backup: \(error.localizedDescription)", error: true)
             }
             exportDocument = nil
         }
@@ -103,20 +103,20 @@ struct BackupRestoreView: View {
                 guard let url = urls.first else { return }
                 restore(from: url)
             case .failure(let error):
-                setStatus("Dosya seçilemedi: \(error.localizedDescription)", error: true)
+                setStatus("Could not select file: \(error.localizedDescription)", error: true)
             }
         }
         .confirmationDialog(
-            "Yedeği geri yükle?",
+            "Restore this backup?",
             isPresented: $showRestoreWarning,
             titleVisibility: .visible
         ) {
-            Button("Yedek Dosyası Seç") {
+            Button("Choose Backup File") {
                 showImporter = true
             }
-            Button("Vazgeç", role: .cancel) {}
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Restore mevcut kitap dosyalarını silmez. İstatistik, geçmiş, başarımlar, notlar ve ayarlar güvenli biçimde birleştirilir. Yedekte olup cihazda bulunmayan çizgi romanlar 'cihazda değil' olarak korunur.")
+            Text("Restore does not delete existing comic files. Statistics, history, achievements, notes and settings are merged. Comics missing from this device are kept as unavailable records.")
         }
     }
 
@@ -135,19 +135,19 @@ struct BackupRestoreView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("ComicPort Backup")
                         .font(.largeTitle.bold())
-                    Text("Okuma geçmişini ve kişisel verilerini cihazdan bağımsız tut.")
+                    Text("Keep your reading history and personal data portable.")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
 
             HStack(spacing: 20) {
-                compactStat("\(store.analytics.history.count)", "oturum")
-                compactStat("\(unlockedCount)", "başarım")
-                compactStat("\(noteCount)", "notlu sayfa")
+                compactStat("\(store.analytics.history.count)", "sessions")
+                compactStat("\(unlockedCount)", "achievements")
+                compactStat("\(noteCount)", "annotated pages")
                 compactStat("\(store.savedPanels.count)", "panel")
                 if let lastBackup {
-                    compactStat(lastBackup.formatted(.dateTime.day().month(.abbreviated)), "son yedek")
+                    compactStat(lastBackup.formatted(.dateTime.day().month(.abbreviated)), "last backup")
                 }
             }
         }
@@ -218,7 +218,7 @@ struct BackupRestoreView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             if health.missingFiles > 0 {
-                Text("\(health.missingFiles) comic file(s) are not currently on this Mac. Their metadata/history can still be backed up.")
+                Text("\(health.missingFiles) comic file(s) are not currently on this device. Their metadata/history can still be backed up.")
                     .font(.caption)
                     .foregroundStyle(.orange)
             }
@@ -229,20 +229,20 @@ struct BackupRestoreView: View {
 
     private var includedCard: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text("Yedeğe Dahil")
+            Text("Included in Backup")
                 .font(.title2.bold())
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 230), spacing: 10)], spacing: 10) {
-                included("Kütüphane metadata", "books.vertical.fill")
-                included("Okuma geçmişi & istatistikler", "chart.bar.fill")
-                included("Başarımlar & XP", "trophy.fill")
-                included("Favoriler & yıldızlar", "heart.fill")
-                included("Crop / Reader ayarları", "crop")
+                included("Library metadata", "books.vertical.fill")
+                included("Reading history & statistics", "chart.bar.fill")
+                included("Achievements & XP", "trophy.fill")
+                included("Favorites & ratings", "heart.fill")
+                included("Crop & Reader settings", "crop")
                 included("Story Arc / Reading Order", "point.3.connected.trianglepath.dotted")
-                included("Pencil & metin notları", "pencil.and.scribble")
+                included("Pencil & text notes", "pencil.and.scribble")
                 included("Reading Journal", "book.pages.fill")
-                included("My Panels görselleri", "rectangle.stack.fill")
-                included("Tema & uygulama tercihleri", "paintpalette.fill")
+                included("My Panels images", "rectangle.stack.fill")
+                included("Theme & app preferences", "paintpalette.fill")
                 included("Smart Collections", "rectangle.3.group.fill")
             }
         }
@@ -266,9 +266,9 @@ struct BackupRestoreView: View {
 
     private var safetyCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("Çizgi roman dosyaları yedeğe dahil edilmez", systemImage: "info.circle.fill")
+            Label("Comic files are not included in backups", systemImage: "info.circle.fill")
                 .font(.headline)
-            Text("Çizgi roman dosyaları ve yeniden üretilebilen OCR arama indeksi yedeğe dahil edilmez. .panelbackup profilini, notlarını, Smart Collections kurallarını ve My Panels öğelerini korur. Source/Sync klasör izinleri macOS güvenlik bookmark\'ları olduğu için yeni Mac\'te klasörler tekrar seçilir.")
+            Text("Comic files and the rebuildable OCR index are not included. Your .panelbackup preserves your profile, notes, Smart Collection rules and saved panels. Select source folders again when restoring on another device.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -297,7 +297,7 @@ struct BackupRestoreView: View {
                 showExporter = true
             } catch {
                 isWorking = false
-                setStatus("Yedek oluşturulamadı: \(error.localizedDescription)", error: true)
+                setStatus("Could not create backup: \(error.localizedDescription)", error: true)
             }
         }
     }
@@ -319,17 +319,17 @@ struct BackupRestoreView: View {
 
                 let result = try store.restoreBackupData(data)
                 if let restoredTheme = result.accentTheme {
-                    theme.accent = restoredTheme
+                    theme.accent = restoredTheme.releaseSelection
                 }
 
                 isWorking = false
                 setStatus(
-                    "Restore tamamlandı: \(result.importedBooks) kitap kaydı, \(result.historyEntries) oturum, \(result.notes) notlu sayfa ve \(result.panels) My Panels öğesi işlendi.",
+                    "Restore complete: \(result.importedBooks) comic records, \(result.historyEntries) sessions, \(result.notes) annotated pages and \(result.panels) saved panels processed.",
                     error: false
                 )
             } catch {
                 isWorking = false
-                setStatus("Restore başarısız: \(error.localizedDescription)", error: true)
+                setStatus("Restore failed: \(error.localizedDescription)", error: true)
             }
         }
     }

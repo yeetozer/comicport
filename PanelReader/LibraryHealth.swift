@@ -88,7 +88,7 @@ enum LibraryHealthScanner {
                                 kind: .missingFile,
                                 severity: .warning,
                                 title: item.title,
-                                detail: "Çizgi roman dosyası bu cihazda değil. Kayıt ve istatistikler korunuyor; aynı dosyayı yeniden içe aktarabilirsin.",
+                                detail: "This comic is not on this device. Its record and statistics are preserved. Import the same file to reconnect it.",
                                 bookID: item.id,
                                 relatedBookIDs: [],
                                 seriesID: nil
@@ -111,7 +111,7 @@ enum LibraryHealthScanner {
                                 kind: .veryLargeFile,
                                 severity: .info,
                                 title: item.title,
-                                detail: "Dosya yaklaşık \(formatBytes(bytes)). Storage Optimizer ile alan kazanabilirsin.",
+                                detail: "This file uses about \(formatBytes(bytes)). Storage Optimizer may help save space.",
                                 bookID: item.id,
                                 relatedBookIDs: [],
                                 seriesID: nil
@@ -126,7 +126,7 @@ enum LibraryHealthScanner {
                                 kind: .missingCover,
                                 severity: .warning,
                                 title: item.title,
-                                detail: "Kapak önbelleği eksik. Dosyadan güvenli biçimde yeniden üretilebilir.",
+                                detail: "The cached cover is missing. It can be safely regenerated from the file.",
                                 bookID: item.id,
                                 relatedBookIDs: [],
                                 seriesID: nil
@@ -141,7 +141,7 @@ enum LibraryHealthScanner {
                                 kind: .unreadableFile,
                                 severity: .critical,
                                 title: item.title,
-                                detail: "Kayıt 0 okunabilir sayfa bildiriyor.",
+                                detail: "This record reports no readable pages.",
                                 bookID: item.id,
                                 relatedBookIDs: [],
                                 seriesID: nil
@@ -158,7 +158,7 @@ enum LibraryHealthScanner {
                                     kind: .unreadableFile,
                                     severity: .critical,
                                     title: item.title,
-                                    detail: "Derin tarama dosyada okunabilir sayfa bulamadı.",
+                                    detail: "Deep Scan found no readable pages in the file.",
                                     bookID: item.id,
                                     relatedBookIDs: [],
                                     seriesID: nil
@@ -171,7 +171,7 @@ enum LibraryHealthScanner {
                                     kind: .pageCountMismatch,
                                     severity: .warning,
                                     title: item.title,
-                                    detail: "Kayıt \(item.expectedPageCount) sayfa, dosya \(actual) sayfa bildiriyor.",
+                                    detail: "The record reports \(item.expectedPageCount) pages; the file contains \(actual).",
                                     bookID: item.id,
                                     relatedBookIDs: [],
                                     seriesID: nil
@@ -201,7 +201,7 @@ enum LibraryHealthScanner {
                                 kind: .duplicate,
                                 severity: .warning,
                                 title: item.title,
-                                detail: "Aynı içeriğe benzeyen \(ids.count) kütüphane kaydı bulundu.",
+                                detail: "Found \(ids.count) library records with potentially identical content.",
                                 bookID: item.id,
                                 relatedBookIDs: ids.filter { $0 != item.id },
                                 seriesID: nil

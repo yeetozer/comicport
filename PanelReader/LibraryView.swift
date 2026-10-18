@@ -13,8 +13,15 @@ struct LibraryView: View {
     var body: some View {
         ZStack(alignment: .top) {
             if store.isBootstrapped {
-                DashboardShellView()
-                    .transition(.opacity)
+                #if DEBUG
+                if let route = ProcessInfo.processInfo.environment["SCREENSHOT_ROUTE"] {
+                    ScreenshotRootView(route: route)
+                } else {
+                    DashboardShellView().transition(.opacity)
+                }
+                #else
+                DashboardShellView().transition(.opacity)
+                #endif
 
                 if let achievement = store.currentAchievementBanner {
                     AchievementBanner(achievement: achievement)
@@ -61,7 +68,7 @@ struct LibraryView: View {
                     .stroke(accentColor, style: StrokeStyle(lineWidth: 3, dash: [9, 6]))
                     .padding(14)
                     .overlay {
-                        Label("Çizgi romanları ComicPort'a bırak", systemImage: "square.and.arrow.down")
+                        Label("Drop comics into ComicPort", systemImage: "square.and.arrow.down")
                             .font(.title3.bold())
                             .padding(.horizontal, 18)
                             .padding(.vertical, 12)
@@ -134,7 +141,7 @@ private struct PanelReaderLaunchView: View {
                 .padding(.top, 4)
                 .opacity(titleVisible ? 1 : 0.25)
 
-            Text(message)
+            Text(ComicPortRelease.copy(message))
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -170,69 +177,7 @@ private struct PanelReaderLaunchView: View {
     }
 }
 
-private struct LibraryHomeView: View {
-    @EnvironmentObject var store: LibraryStore
-    @State private var showImporter = false
-    @State private var search = ""
 
-    var searchedBooks: [ComicBook] {
-        store.libraryBooks.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if store.libraryBooks.isEmpty {
-                    ContentUnavailableView("Your library is empty", systemImage: "books.vertical", description: Text("Import PDF, CBZ, CBR, CB7, CBT, ZIP, RAR or 7z comics from Files."))
-                } else if !search.isEmpty {
-                    SearchGrid(books: searchedBooks)
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 30) {
-                            DailyGoalBanner()
-                            ShelfSection(title: "Continue Reading", icon: "play.circle.fill", books: store.books(with: .reading))
-                            ShelfSection(title: "Recently Added", icon: "sparkles", books: store.recentlyAdded)
-                            ShelfSection(title: "Recently Read", icon: "clock.fill", books: store.recentlyRead)
-                            ShelfSection(title: "To Read", icon: "bookmark.fill", books: store.books(with: .toRead))
-                            ShelfSection(title: "Completed", icon: "checkmark.circle.fill", books: store.books(with: .completed))
-                            ShelfSection(title: "Favorites", icon: "heart.fill", books: store.libraryBooks.filter { $0.favorite })
-                        }
-                        .padding(.vertical)
-                    }
-                }
-            }
-            .navigationTitle("ComicPort")
-            .searchable(text: $search, prompt: "Search library")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    if store.importInProgressCount > 0 {
-                        HStack(spacing: 7) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Importing \(store.importInProgressCount)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    } else {
-                        Button { showImporter = true } label: { Label("Import", systemImage: "plus") }
-                    }
-                }
-            }
-            .navigationDestination(for: UUID.self) { id in
-                if let book = store.books.first(where: { $0.id == id }) { BookDetailView(bookID: book.id) }
-            }
-            .fileImporter(isPresented: $showImporter, allowedContentTypes: ComicArchiveFormat.allowedImportTypes, allowsMultipleSelection: true) { result in
-                switch result {
-                case .success(let urls): urls.forEach(store.importFile)
-                case .failure(let error): store.importError = error.localizedDescription
-                }
-            }
-            .alert("ComicPort", isPresented: Binding(get: { store.importError != nil }, set: { if !$0 { store.importError = nil } })) {
-                Button("OK", role: .cancel) { store.importError = nil }
-            } message: { Text(store.importError ?? "") }
-        }
-    }
-}
 
 private struct DailyGoalBanner: View {
     @EnvironmentObject var store: LibraryStore
