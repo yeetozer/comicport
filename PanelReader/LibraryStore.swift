@@ -271,7 +271,9 @@ final class LibraryStore: ObservableObject {
         return min(1, Double(todayStat.pages) / Double(analytics.dailyGoalPages))
     }
 
-    var libraryBooks: [ComicBook] { books.filter { $0.isInLibrary && !$0.isArchived } }
+    var libraryBooks: [ComicBook] {
+        books.filter { $0.isInLibrary && !$0.isArchived }.sorted(by: SeriesService.titleOrder)
+    }
     var archivedBooks: [ComicBook] { books.filter { $0.isArchived } }
     var removedBooks: [ComicBook] { books.filter { !$0.isInLibrary && !$0.isArchived } }
     var savedDataBooks: [ComicBook] { books.filter { $0.isArchived || !$0.isInLibrary || !$0.fileAvailable } }

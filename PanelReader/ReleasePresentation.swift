@@ -82,10 +82,11 @@ struct DashboardBrowseView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .frame(maxWidth: 700)
-            .frame(maxWidth: .infinity)
             .navigationTitle("Browse")
+            .navigationBarTitleDisplayMode(.large)
         }
+        .frame(maxWidth: 700)
+        .frame(maxWidth: .infinity)
     }
 }
 

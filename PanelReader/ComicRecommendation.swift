@@ -238,7 +238,7 @@ enum ComicRecommendationEngine {
             recommendations
                 .sorted {
                     if abs($0.score - $1.score) > 0.01 { return $0.score > $1.score }
-                    return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                    return ComicDisplayTitle.clean($0.title).localizedStandardCompare(ComicDisplayTitle.clean($1.title)) == .orderedAscending
                 }
                 .prefix(limit)
         )

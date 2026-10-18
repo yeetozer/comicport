@@ -168,7 +168,6 @@ struct DashboardShellView: View {
                     }
 
                     VStack(spacing: 0) {
-                        if selection != .settings {
                         DashboardTopBar(
                             searchText: $searchText,
                             showImporter: $showImporter,
@@ -176,7 +175,6 @@ struct DashboardShellView: View {
                         )
 
                         Divider().opacity(0.18)
-                        }
 
                         DashboardContent(selection: $selection, searchText: searchText)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1760,11 +1758,10 @@ private struct DashboardSettingsView: View {
 
                 }
 
-                Section("Storage") {
-                    Text("Storage Optimizer")
-                    Text("Optimize PDF and archive storage from a comic’s detail page. The original is preserved until the new copy is verified.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Section {
+                    EmptyView()
+                } footer: {
+                    Text("Storage Optimizer: optimize PDF and archive storage from a comic’s detail page. The original is preserved until the new copy is verified.")
                 }
 
                 Section("Health & Diagnostics") {
@@ -1792,7 +1789,7 @@ private struct DashboardSettingsView: View {
             }
             .scrollContentBackground(.hidden)
             .navigationTitle("Settings")
-            .navigationBarTitleDisplayMode(.inline)
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 }

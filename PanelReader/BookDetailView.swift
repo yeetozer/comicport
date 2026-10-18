@@ -151,6 +151,7 @@ struct BookDetailView: View {
                     }
                 } label: {
                     Label(book.currentPage > 0 ? String(localized: "Continue · page \(book.currentPage + 1)") : String(localized: "Start Reading"), systemImage: "play.fill")
+                        .frame(maxWidth: .infinity, minHeight: 50)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

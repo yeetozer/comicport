@@ -218,7 +218,7 @@ enum LibraryHealthScanner {
                     totalBytes: totalBytes,
                     issues: issues.sorted {
                         if $0.severity != $1.severity { return $0.severity > $1.severity }
-                        return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                        return ComicDisplayTitle.clean($0.title).localizedStandardCompare(ComicDisplayTitle.clean($1.title)) == .orderedAscending
                     }
                 )
                 continuation.yield(.finished(snapshot))

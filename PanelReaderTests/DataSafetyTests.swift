@@ -10,6 +10,29 @@ final class DataSafetyTests: XCTestCase {
             bookInfoFiles: [], accentThemeRawValue: "")
     }
 
+    func testNaturalTitleOrderUsesCleanedDisplayTitles() {
+        let books = ["Henry_Aldrich_012", "Henry Aldrich #5", "Henry_Aldrich_001", "Series 12", "Series 5"]
+            .map { ComicBook(title: $0, storedFileName: "sample.pdf", type: .pdf, pageCount: 10) }
+        XCTAssertEqual(books.sorted(by: SeriesService.titleOrder).map(\.displayTitle),
+                       ["Henry Aldrich #1", "Henry Aldrich #5", "Henry Aldrich #12", "Series #5", "Series #12"])
+        let series = SeriesService.series(from: Array(books.prefix(3)))
+        XCTAssertEqual(SeriesService.books(in: series[0], from: books).map(\.displayTitle),
+                       ["Henry Aldrich #1", "Henry Aldrich #5", "Henry Aldrich #12"])
+    }
+
+    @MainActor func testLibraryDefaultsToTitleWhileRecentlyAddedStaysByDate() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = LibraryStore(documentsURL: root)
+        let twelve = ComicBook(title: "Henry_Aldrich_012", storedFileName: "12.pdf", type: .pdf, pageCount: 10,
+                               addedAt: Date(timeIntervalSince1970: 200))
+        let five = ComicBook(title: "Henry_Aldrich_005", storedFileName: "5.pdf", type: .pdf, pageCount: 10,
+                             addedAt: Date(timeIntervalSince1970: 100))
+        try store.restoreBackupData(JSONEncoder().encode(payload(books: [twelve, five])))
+        XCTAssertEqual(store.libraryBooks.map(\.id), [five.id, twelve.id])
+        XCTAssertEqual(store.recentlyAdded.map(\.id), [twelve.id, five.id])
+    }
+
     func testDuplicatePanelImagesThrowInsteadOfTrap() {
         let id = UUID()
         XCTAssertThrowsError(try BackupSafety.validate(payload(images: [
