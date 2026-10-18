@@ -39,7 +39,7 @@ jobs:
       - name: Unsigned Debug simulator build
         run: |
           set -o pipefail
-          xcodebuild -project PanelReader.xcodeproj -scheme PanelReader -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee simulator-build.log
+          xcodebuild -project PanelReader.xcodeproj -scheme 'ComicPort Mac' -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO build 2>&1 | tee simulator-build.log
       - name: Capture production screens
         run: python3 .github/screenshot-capture.py
       - name: Upload screenshots and diagnostics
