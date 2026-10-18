@@ -35,7 +35,10 @@ for device in [small] + ([large] if large else []):
             run('xcrun','simctl','launch',udid,'com.yeetozer.comicport',env=env)
             deadline = time.time()+180
             while not marker.exists() and time.time()<deadline: time.sleep(1)
-            if not marker.exists(): raise RuntimeError(f'No ready marker: {route} {device["name"]}')
+            if not marker.exists():
+                run('xcrun','simctl','io',udid,'screenshot',str(folder / 'failure.png'))
+                subprocess.run(['xcrun','simctl','spawn',udid,'log','show','--last','5m','--style','compact','--predicate','process == "PanelReader"'],stdout=(folder/'failure.log').open('w'),stderr=subprocess.DEVNULL)
+                raise RuntimeError(f'No ready marker: {route} {device["name"]}')
             status = marker.read_text()
             if route != 'empty' and 'books=2' not in status: raise RuntimeError(status)
             time.sleep(3)
