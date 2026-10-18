@@ -2,77 +2,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-struct PremiumLibraryHomeView: View {
-    @EnvironmentObject var store: LibraryStore
-    @State private var showImporter = false
-    @State private var search = ""
 
-    private var searched: [ComicBook] {
-        store.libraryBooks.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) }
-    }
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if store.libraryBooks.isEmpty {
-                    ContentUnavailableView("Your library is empty", systemImage: "books.vertical", description: Text("Import a PDF or CBZ from Files."))
-                } else if !search.isEmpty {
-                    ComicGrid(books: searched)
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 30) {
-                            libraryHero
-                            GoalCard()
-                            if let current = store.recentlyRead.first { ContinueCard(book: current) }
-                            ComicShelf(title: "Recently Added", icon: "sparkles", books: store.recentlyAdded)
-                            ComicShelf(title: "Recently Read", icon: "clock.fill", books: store.recentlyRead)
-                            ComicShelf(title: "Reading", icon: "book.pages", books: store.books(with: .reading))
-                            ComicShelf(title: "To Read", icon: "bookmark.fill", books: store.books(with: .toRead))
-                            ComicShelf(title: "Completed", icon: "checkmark.circle.fill", books: store.books(with: .completed))
-                            ComicShelf(title: "Favorites", icon: "heart.fill", books: store.libraryBooks.filter { $0.favorite })
-                            CharacterPreviewSection(comics: store.libraryBooks)
-                        }
-                        .padding(.vertical)
-                    }
-                }
-            }
-            .navigationTitle("ComicPort")
-            .searchable(text: $search, prompt: "Search library")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showImporter = true } label: { Label("Import", systemImage: "plus") }
-                }
-            }
-            .navigationDestination(for: UUID.self) { id in
-                if store.books.contains(where: { $0.id == id }) { BookDetailView(bookID: id) }
-            }
-            .fileImporter(isPresented: $showImporter, allowedContentTypes: [UTType.pdf, UTType(filenameExtension: "cbz") ?? .data], allowsMultipleSelection: true) { result in
-                switch result {
-                case .success(let urls): urls.forEach(store.importFile)
-                case .failure(let error): store.importError = error.localizedDescription
-                }
-            }
-            .alert("ComicPort", isPresented: Binding(get: { store.importError != nil }, set: { if !$0 { store.importError = nil } })) {
-                Button("OK", role: .cancel) { store.importError = nil }
-            } message: { Text(store.importError ?? "") }
-        }
-    }
-
-    private var libraryHero: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Your Library").font(.largeTitle.bold())
-                Text("\(store.libraryBooks.count) comics • \(store.books(with: .completed).count) completed")
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: "books.vertical.fill")
-                .font(.system(size: 34))
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal)
-    }
-}
 
 private struct GoalCard: View {
     @EnvironmentObject var store: LibraryStore
@@ -108,10 +38,10 @@ private struct ContinueCard: View {
                 HStack(spacing: 18) {
                     ComicCover(book: book).frame(width: 110, height: 165).clipShape(RoundedRectangle(cornerRadius: 14))
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(book.title).font(.title3.bold()).foregroundStyle(.primary).lineLimit(2)
-                        Text("\(book.progressPercent)% read • page \(min(book.currentPage + 1, max(1, book.pageCount))) of \(book.pageCount)")
+                        Text(book.displayTitle).font(.title3.bold()).foregroundStyle(.primary).lineLimit(2)
+                        Text("\(book.displayProgressPercent)% read • page \(min(book.currentPage + 1, max(1, book.pageCount))) of \(book.pageCount)")
                             .foregroundStyle(.secondary)
-                        ProgressView(value: book.progress).frame(maxWidth: 320)
+                        ProgressView(value: book.displayProgress).frame(maxWidth: 320)
                         Label("Resume", systemImage: "play.fill").font(.headline).foregroundStyle(.primary)
                     }
                     Spacer()
@@ -165,10 +95,10 @@ private struct PremiumBookCard: View {
                 ComicCover(book: book).aspectRatio(2/3, contentMode: .fit).clipShape(RoundedRectangle(cornerRadius: 14)).shadow(radius: 4, y: 2)
                 if book.favorite { Image(systemName: "heart.fill").foregroundStyle(.white).padding(8).background(.black.opacity(0.55), in: Circle()).padding(8) }
             }
-            Text(book.title).font(.headline).foregroundStyle(.primary).lineLimit(2)
-            HStack { Text("\(book.progressPercent)%"); Spacer(); Image(systemName: book.readingStatus.systemImage) }
+            Text(book.displayTitle).font(.headline).foregroundStyle(.primary).lineLimit(2)
+            HStack { Text("\(book.displayProgressPercent)%"); Spacer(); Image(systemName: book.readingStatus.systemImage) }
                 .font(.caption).foregroundStyle(.secondary)
-            ProgressView(value: book.progress)
+            ProgressView(value: book.displayProgress)
             if book.rating > 0 {
                 HStack(spacing: 2) { ForEach(1...5, id: \.self) { n in Image(systemName: n <= book.rating ? "star.fill" : "star") } }
                     .font(.caption2).foregroundStyle(.secondary)

@@ -65,6 +65,8 @@ final class LibraryStore: ObservableObject {
     private let syncLocationDefaultsKey = "ComicPort.stage18.syncLocation"
     private let syncFileName = "ComicPort-Sync-v1.json"
 
+    private let metadataWriter = VersionedMetadataWriter()
+    private var metadataGeneration: UInt64 = 0
     private var pendingLibrarySave: Task<Void, Never>?
     private var pendingSyncExport: Task<Void, Never>?
     private var pendingExternalImportURLs: [URL] = []
@@ -78,7 +80,10 @@ final class LibraryStore: ObservableObject {
     private var recommendationCache: [ComicRecommendation] = []
     private var bootstrapStarted = false
 
-    init() {
+    private let documentsOverride: URL?
+
+    init(documentsURL: URL? = nil) {
+        self.documentsOverride = documentsURL
         // Keep App initialization intentionally tiny. Disk enumeration, JSON decoding and
         // hundreds of file-existence checks are performed by bootstrap() after the first frame.
         guidedPanelModeEnabled = UserDefaults.standard.bool(forKey: guidedPanelModeKey)
@@ -111,7 +116,7 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    var documentsURL: URL { fm.urls(for: .documentDirectory, in: .userDomainMask)[0] }
+    var documentsURL: URL { documentsOverride ?? fm.urls(for: .documentDirectory, in: .userDomainMask)[0] }
     var booksURL: URL { documentsURL.appendingPathComponent("Books", isDirectory: true) }
     var coversURL: URL { documentsURL.appendingPathComponent("Covers", isDirectory: true) }
     var notesURL: URL { documentsURL.appendingPathComponent("Notes", isDirectory: true) }
@@ -132,7 +137,7 @@ final class LibraryStore: ObservableObject {
     func bootstrap() async {
         guard !isBootstrapped, !bootstrapStarted else { return }
         bootstrapStarted = true
-        bootstrapMessage = "Kütüphane yükleniyor…"
+        bootstrapMessage = "Loading your library…"
 
         let paths = LibraryBootstrapPaths(
             documents: documentsURL,
@@ -265,7 +270,9 @@ final class LibraryStore: ObservableObject {
         return min(1, Double(todayStat.pages) / Double(analytics.dailyGoalPages))
     }
 
-    var libraryBooks: [ComicBook] { books.filter { $0.isInLibrary && !$0.isArchived } }
+    var libraryBooks: [ComicBook] {
+        books.filter { $0.isInLibrary && !$0.isArchived }.sorted(by: SeriesService.titleOrder)
+    }
     var archivedBooks: [ComicBook] { books.filter { $0.isArchived } }
     var removedBooks: [ComicBook] { books.filter { !$0.isInLibrary && !$0.isArchived } }
     var savedDataBooks: [ComicBook] { books.filter { $0.isArchived || !$0.isInLibrary || !$0.fileAvailable } }
@@ -752,6 +759,16 @@ final class LibraryStore: ObservableObject {
         return nil
     }
 
+    /// Begin a reread without retaining the completed flag or creating reading history.
+    func restartComic(id: UUID) {
+        guard let index = books.firstIndex(where: { $0.id == id }) else { return }
+        activeSessions.removeValue(forKey: id)
+        books[index].currentPage = 0
+        books[index].readingStatus = .toRead
+        books[index].lastReadAt = nil
+        save()
+    }
+
     func updateProgress(id: UUID, page: Int) {
         guard let i = books.firstIndex(where: { $0.id == id }) else { return }
         let clamped = max(0, min(page, max(0, books[i].pageCount - 1)))
@@ -932,6 +949,10 @@ final class LibraryStore: ObservableObject {
     func deletePanel(_ panel: SavedPanel) {
         try? fm.removeItem(at: panelURL(for: panel))
         savedPanels.removeAll { $0.id == panel.id }
+        for index in readingJournalEntries.indices where readingJournalEntries[index].favoritePanelID == panel.id {
+            readingJournalEntries[index].favoritePanelID = nil
+        }
+        saveReadingJournal()
         saveSavedPanels()
     }
 
@@ -964,7 +985,7 @@ final class LibraryStore: ObservableObject {
             let leftTitle = bookTitle(for: $0.bookID)
             let rightTitle = bookTitle(for: $1.bookID)
             if leftTitle == rightTitle { return $0.page < $1.page }
-            return leftTitle.localizedCaseInsensitiveCompare(rightTitle) == .orderedAscending
+            return leftTitle.localizedStandardCompare(rightTitle) == .orderedAscending
         }
     }
 
@@ -1173,6 +1194,12 @@ final class LibraryStore: ObservableObject {
         pencilAnnotationPageKeys = Set(pencilAnnotationPageKeys.filter { !$0.hasPrefix(book.id.uuidString + "-") })
         saveTextNotes()
         let panelsForBook = savedPanels.filter { $0.bookID == book.id }
+        let deletedPanelIDs = Set(panelsForBook.map(\.id))
+        for index in readingJournalEntries.indices {
+            if let id = readingJournalEntries[index].favoritePanelID, deletedPanelIDs.contains(id) {
+                readingJournalEntries[index].favoritePanelID = nil
+            }
+        }
         for panel in panelsForBook { try? fm.removeItem(at: panelURL(for: panel)) }
         savedPanels.removeAll { $0.bookID == book.id }
         saveSavedPanels()
@@ -1184,6 +1211,8 @@ final class LibraryStore: ObservableObject {
         deleteGuidedPanelCache(for: book.id)
         try? fm.removeItem(at: offlineInfoURL(bookID: book.id))
         books.removeAll { $0.id == book.id }
+        for index in storyArcs.indices { storyArcs[index].bookIDs.removeAll { $0 == book.id } }
+        saveStoryArcs()
         readerSettingsByBook.removeValue(forKey: book.id.uuidString)
         saveReaderSettings()
         analytics.history.removeAll { $0.bookID == book.id }
@@ -1260,12 +1289,7 @@ final class LibraryStore: ObservableObject {
             try? await Task.sleep(for: .milliseconds(650))
             guard !Task.isCancelled, let self else { return }
 
-            let snapshot = self.books
-            let url = self.metadataURL
-            await Task.detached(priority: .utility) {
-                guard let data = try? JSONEncoder().encode(snapshot) else { return }
-                try? data.write(to: url, options: .atomic)
-            }.value
+            self.save()
 
             guard !Task.isCancelled else { return }
             self.pendingLibrarySave = nil
@@ -1285,13 +1309,8 @@ final class LibraryStore: ObservableObject {
     }
 
     private func save() {
-        do {
-            let data = try JSONEncoder().encode(books)
-            try data.write(to: metadataURL, options: .atomic)
-            scheduleComicPortSyncExport()
-        } catch {
-            importError = "Could not save library: \(error.localizedDescription)"
-        }
+        persistInBackground(books, to: metadataURL, errorPrefix: "Could not save library")
+        scheduleComicPortSyncExport()
     }
 
     private func persistInBackground<T: Encodable & Sendable>(
@@ -1299,13 +1318,24 @@ final class LibraryStore: ObservableObject {
         to url: URL,
         errorPrefix: String
     ) {
-        Task { @MainActor [weak self] in
-            do {
-                try await PanelDiskWriter.shared.write(snapshot, to: url)
-            } catch {
-                self?.importError = "\(errorPrefix): \(error.localizedDescription)"
+        metadataGeneration += 1
+        metadataWriter.enqueue(snapshot, to: url, generation: metadataGeneration) { [weak self] message in
+            Task { @MainActor [weak self] in
+                self?.importError = "\(errorPrefix): \(message)"
             }
         }
+    }
+
+    /// Submissions happen synchronously on main; encoding and disk IO never do.
+    func flush() async throws {
+        flushPendingLibrarySave()
+        try await metadataWriter.flush()
+    }
+
+    // UIKit cannot await termination. Drain the same serial executor as a last resort.
+    func flushForTermination() {
+        flushPendingLibrarySave()
+        metadataWriter.drain()
     }
 
     private func saveAnalytics() {
@@ -2343,42 +2373,47 @@ extension LibraryStore {
 
 extension LibraryStore {
     func makeBackupData(accentTheme: PanelAccentTheme) async throws -> Data {
-        flushPendingLibrarySave()
+        try await flush()
 
         let noteDirectory = notesURL
         let panelDirectory = panelsURL
         let infoDirectory = infoCacheURL
         let panelMetadata = savedPanels
 
-        let assets = await Task.detached(priority: .utility) {
+        let assets = try await Task.detached(priority: .utility) {
             let fm = FileManager.default
 
             var drawings: [BackupPencilDrawing] = []
-            if let urls = try? fm.contentsOfDirectory(at: noteDirectory, includingPropertiesForKeys: nil) {
+            do {
+                let urls = try fm.contentsOfDirectory(at: noteDirectory, includingPropertiesForKeys: nil)
                 for url in urls where url.pathExtension == "drawing" {
                     let base = url.deletingPathExtension().lastPathComponent
                     guard let split = base.lastIndex(of: "-"),
                           let id = UUID(uuidString: String(base[..<split])),
-                          let page = Int(base[base.index(after: split)...]),
-                          let data = try? Data(contentsOf: url) else { continue }
+                          let page = Int(base[base.index(after: split)...]) else {
+                        throw BackupSafety.error("Unrecognized drawing asset: \(url.lastPathComponent)")
+                    }
+                    let data = try Data(contentsOf: url)
                     drawings.append(BackupPencilDrawing(bookID: id, page: page, data: data))
                 }
             }
 
             var panelImages: [BackupPanelImage] = []
             for panel in panelMetadata {
-                let url = panelDirectory.appendingPathComponent(panel.imageFileName)
-                if let data = try? Data(contentsOf: url) {
+                let url = try BackupSafety.assetURL(panel.imageFileName, in: panelDirectory)
+                if fm.fileExists(atPath: url.path) {
+                    let data = try Data(contentsOf: url)
                     panelImages.append(BackupPanelImage(panelID: panel.id, data: data))
                 }
             }
 
             var infoFiles: [BackupBookInfo] = []
-            if let urls = try? fm.contentsOfDirectory(at: infoDirectory, includingPropertiesForKeys: nil) {
+            do {
+                let urls = try fm.contentsOfDirectory(at: infoDirectory, includingPropertiesForKeys: nil)
                 for url in urls where url.pathExtension.lowercased() == "json" {
                     let stem = url.deletingPathExtension().lastPathComponent
-                    guard let id = UUID(uuidString: stem),
-                          let data = try? Data(contentsOf: url) else { continue }
+                    guard let id = UUID(uuidString: stem) else { throw BackupSafety.error("Unrecognized book info asset") }
+                    let data = try Data(contentsOf: url)
                     infoFiles.append(BackupBookInfo(bookID: id, data: data))
                 }
             }
@@ -2412,17 +2447,30 @@ extension LibraryStore {
         return try encoder.encode(payload)
     }
 
-    func restoreBackupData(_ data: Data) throws -> PanelBackupRestoreResult {
-        flushPendingLibrarySave()
+    func restoreBackupData(_ data: Data) async throws -> PanelBackupRestoreResult {
 
         let decoder = JSONDecoder()
-        let payload = try decoder.decode(PanelBackupPayload.self, from: data)
+        var payload = try decoder.decode(PanelBackupPayload.self, from: data)
         guard payload.schemaVersion <= PanelBackupPayload.currentSchemaVersion else {
             throw NSError(
                 domain: "PanelReader.Backup",
                 code: 2,
                 userInfo: [NSLocalizedDescriptionKey: "This backup was created by a newer ComicPort backup format."]
             )
+        }
+
+        try BackupSafety.validate(payload)
+        let skippedItems = BackupSafety.prune(&payload)
+        for directory in [booksURL, coversURL, notesURL, panelsURL, infoCacheURL] {
+            try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        try await flush()
+        for book in books + payload.books {
+            _ = try BackupSafety.assetURL(book.storedFileName, in: booksURL)
+            if let name = book.thumbnailFileName { _ = try BackupSafety.assetURL(name, in: coversURL) }
+        }
+        for panel in payload.savedPanels {
+            _ = try BackupSafety.assetURL(panel.imageFileName, in: panelsURL)
         }
 
         var idMap: [UUID: UUID] = [:]
@@ -2497,6 +2545,44 @@ extension LibraryStore {
             }
         }
 
+        // Stage every asset before changing live metadata or files.
+        let staging = documentsURL.appendingPathComponent("Restore-\(UUID().uuidString)", isDirectory: true)
+        try fm.createDirectory(at: staging, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: staging) }
+        var staged: [(URL, URL)] = []
+        func stage(_ bytes: Data, target: URL) throws {
+            let source = staging.appendingPathComponent(UUID().uuidString)
+            try bytes.write(to: source, options: .atomic)
+            staged.append((source, target))
+        }
+        for drawing in payload.pencilDrawings {
+            try stage(drawing.data, target: noteURL(bookID: idMap[drawing.bookID]!, page: drawing.page))
+        }
+        for image in payload.panelImages {
+            let panel = payload.savedPanels.first { $0.id == image.panelID }!
+            try stage(image.data, target: BackupSafety.assetURL(panel.imageFileName, in: panelsURL))
+        }
+        for info in payload.bookInfoFiles {
+            try stage(info.data, target: offlineInfoURL(bookID: idMap[info.bookID]!))
+        }
+        // Preserve overwritten assets so a failed asset commit can roll back.
+        var previous: [(URL, Data?)] = []
+        do {
+            for (source, target) in staged {
+                let old = fm.fileExists(atPath: target.path) ? try Data(contentsOf: target) : nil
+                previous.append((target, old))
+                try Data(contentsOf: source).write(to: target, options: .atomic)
+            }
+        } catch {
+            var rollbackFailed = false
+            for (target, old) in previous.reversed() {
+                do {
+                    if let old { try old.write(to: target, options: .atomic) }
+                    else if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }
+                } catch { rollbackFailed = true }
+            }
+            throw BackupSafety.error("Restore asset commit failed: \(error.localizedDescription). \(rollbackFailed ? "Some assets could not be rolled back." : "No metadata was changed.")")
+        }
         books = mergedBooks
 
         // Reading history is merged by history-entry UUID so restoring the same backup twice does not double-count.
@@ -2586,12 +2672,6 @@ extension LibraryStore {
         }
         readingJournalEntries = journalByID.values.sorted { $0.completedAt > $1.completedAt }
 
-        // Restore Pencil drawings with remapped book IDs.
-        for drawing in payload.pencilDrawings {
-            let mappedID = idMap[drawing.bookID] ?? drawing.bookID
-            try? drawing.data.write(to: noteURL(bookID: mappedID, page: drawing.page), options: .atomic)
-        }
-
         // My Panels metadata/images.
         var panelsByID = Dictionary(uniqueKeysWithValues: savedPanels.map { ($0.id, $0) })
         for panel in payload.savedPanels {
@@ -2605,19 +2685,6 @@ extension LibraryStore {
             )
         }
         savedPanels = panelsByID.values.sorted { $0.createdAt > $1.createdAt }
-
-        let panelDataByID = Dictionary(uniqueKeysWithValues: payload.panelImages.map { ($0.panelID, $0.data) })
-        for panel in savedPanels {
-            if let panelData = panelDataByID[panel.id] {
-                try? panelData.write(to: panelURL(for: panel), options: .atomic)
-            }
-        }
-
-        // Cached offline book-info files are small and safe to restore.
-        for info in payload.bookInfoFiles {
-            let mappedID = idMap[info.bookID] ?? info.bookID
-            try? info.data.write(to: offlineInfoURL(bookID: mappedID), options: .atomic)
-        }
 
         autoOpenNextIssue = payload.autoOpenNextIssue
         UserDefaults.standard.set(autoOpenNextIssue, forKey: autoNextKey)
@@ -2652,7 +2719,12 @@ extension LibraryStore {
         saveReadingJournal()
         evaluateAchievements()
 
+        do { try await flush() } catch {
+            let failure = error
+            throw BackupSafety.error("Restore was applied in memory, but saving failed; restore is incomplete: \(failure.localizedDescription)")
+        }
         return PanelBackupRestoreResult(
+            skippedItems: skippedItems,
             accentTheme: PanelAccentTheme(rawValue: payload.accentThemeRawValue),
             importedBooks: payload.books.count,
             historyEntries: payload.analytics.history.count,
@@ -3339,3 +3411,158 @@ private struct ComicPortSyncSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+
+// All mutable state is confined to queue. Enqueue is synchronous, work is not:
+// a flush barrier cannot race an unstarted Task submitting an older snapshot.
+final class VersionedMetadataWriter: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "ComicPort.metadata", qos: .utility)
+    private var latest: [URL: UInt64] = [:]
+    private var failures: [URL: Error] = [:]
+
+    var firstFailure: Error? { queue.sync { failures.values.first } }
+
+    private func commit(_ data: Data, to url: URL, generation: UInt64) throws {
+        guard generation > (latest[url] ?? 0) else { return }
+        try data.write(to: url, options: .atomic)
+        latest[url] = generation // Failed writes must remain retryable.
+        failures.removeValue(forKey: url)
+    }
+
+    func enqueue<T: Encodable & Sendable>(
+        _ value: T, to url: URL, generation: UInt64,
+        onFailure: (@Sendable (String) -> Void)? = nil
+    ) {
+        queue.async {
+            guard generation > (self.latest[url] ?? 0) else { return }
+            do { try self.commit(JSONEncoder().encode(value), to: url, generation: generation) }
+            catch {
+                self.failures[url] = error
+                onFailure?(error.localizedDescription)
+            }
+        }
+    }
+
+    // Kept for raw-data clients and deterministic generation tests.
+    func write(_ data: Data, to url: URL, generation: UInt64) throws {
+        try queue.sync {
+            do { try commit(data, to: url, generation: generation) }
+            catch { failures[url] = error; throw error }
+        }
+    }
+
+    func flush() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                if let error = self.failures.values.first { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            }
+        }
+    }
+
+    func drain() { queue.sync {} }
+}
+
+enum BackupSafety {
+    static func error(_ message: String) -> NSError {
+        NSError(domain: "ComicPort.Backup", code: 10, userInfo: [NSLocalizedDescriptionKey: message])
+    }
+
+    static func assetURL(_ name: String, in directory: URL) throws -> URL {
+        guard !name.isEmpty, name != ".", name != "..",
+              !name.contains("/"), !name.contains("\\"), !name.contains(":"),
+              !name.unicodeScalars.contains(where: { $0.value == 0 }) else {
+            throw error("Unsafe backup filename: \(name)")
+        }
+        let root = directory.standardizedFileURL.resolvingSymlinksInPath()
+        let target = root.appendingPathComponent(name).standardizedFileURL.resolvingSymlinksInPath()
+        guard target.deletingLastPathComponent() == root else {
+            throw error("Backup asset escapes its storage directory.")
+        }
+        return target
+    }
+
+    /// Missing optional assets and dangling links are recoverable, never silently ignored.
+    static func prune(_ payload: inout PanelBackupPayload) -> [String] {
+        var skipped: [String] = []
+        let books = Set(payload.books.map(\.id))
+        func keep(_ valid: Bool, _ description: String) -> Bool {
+            if !valid { skipped.append(description) }
+            return valid
+        }
+        payload.savedPanels = payload.savedPanels.filter { keep(books.contains($0.bookID), "Panel \($0.id): missing book") }
+        let panels = Set(payload.savedPanels.map(\.id))
+        let images = Set(payload.panelImages.map(\.panelID))
+        for panel in payload.savedPanels where !images.contains(panel.id) {
+            skipped.append("Panel \(panel.id): missing image (metadata retained)")
+        }
+        payload.panelImages = payload.panelImages.filter { keep(panels.contains($0.panelID), "Unreferenced panel image \($0.panelID)") }
+        payload.textNotes = payload.textNotes.filter { keep(books.contains($0.bookID), "Note \($0.id): missing book") }
+        payload.pencilDrawings = payload.pencilDrawings.filter { keep(books.contains($0.bookID), "Drawing: missing book \($0.bookID)") }
+        payload.bookInfoFiles = payload.bookInfoFiles.filter { keep(books.contains($0.bookID), "Book info: missing book \($0.bookID)") }
+        for i in payload.storyArcs.indices {
+            payload.storyArcs[i].bookIDs = payload.storyArcs[i].bookIDs.filter { keep(books.contains($0), "Story arc: missing book \($0)") }
+        }
+        payload.readerSettingsByBook = payload.readerSettingsByBook.filter { keep(UUID(uuidString: $0.key).map { books.contains($0) } ?? false, "Reader settings: missing book \($0.key)") }
+        payload.analytics.history = payload.analytics.history.filter { keep(books.contains($0.bookID), "History \($0.id): missing book") }
+        if var journal = payload.readingJournal {
+            journal = journal.filter { keep(books.contains($0.bookID), "Journal \($0.id): missing book") }
+            for i in journal.indices {
+                if let id = journal[i].favoritePanelID, !panels.contains(id) {
+                    journal[i].favoritePanelID = nil
+                    skipped.append("Journal favorite: missing panel \(id)")
+                }
+            }
+            payload.readingJournal = journal
+        }
+        return skipped
+    }
+
+    static func validate(_ payload: PanelBackupPayload) throws {
+        func require(_ value: Bool, _ message: String) throws {
+            if !value { throw error("Invalid backup: \(message)") }
+        }
+        func unique<T: Hashable>(_ values: [T], _ label: String) throws {
+            try require(Set(values).count == values.count, "duplicate \(label).")
+        }
+        try require((1...PanelBackupPayload.currentSchemaVersion).contains(payload.schemaVersion), "unsupported schema.")
+        try unique(payload.books.map(\.id), "book IDs")
+        try unique(payload.storyArcs.map(\.id), "story arc IDs")
+        try unique((payload.readingJournal ?? []).map(\.id), "journal IDs")
+        try unique((payload.smartCollections ?? []).map(\.id), "collection IDs")
+        try unique(payload.textNotes.map(\.id), "note IDs")
+        try unique(payload.savedPanels.map(\.id), "panel IDs")
+        try unique(payload.panelImages.map(\.panelID), "panel image IDs")
+        try unique(payload.analytics.history.map(\.id), "history IDs")
+        try unique(payload.bookInfoFiles.map(\.bookID), "book info IDs")
+        let books = Dictionary(uniqueKeysWithValues: payload.books.map { ($0.id, $0) })
+        let root = URL(fileURLWithPath: "/backup-validation", isDirectory: true)
+        func page(_ id: UUID, _ page: Int) throws {
+            guard books[id] != nil else { return }
+            guard page >= 0, page < books[id]!.pageCount else {
+                throw error("Invalid backup: unknown book or out-of-range page.")
+            }
+        }
+        for book in payload.books {
+            _ = try assetURL(book.storedFileName, in: root)
+            if let name = book.thumbnailFileName { _ = try assetURL(name, in: root) }
+            try require(book.pageCount > 0 && book.currentPage >= 0 && book.currentPage < book.pageCount, "invalid reading progress.")
+            try require((0...5).contains(book.rating), "rating must be between 0 and 5.")
+        }
+        for panel in payload.savedPanels {
+            try page(panel.bookID, panel.page)
+            _ = try assetURL(panel.imageFileName, in: root)
+        }
+        try unique(payload.savedPanels.map(\.imageFileName), "panel filenames")
+        for note in payload.textNotes { try page(note.bookID, note.page) }
+        for drawing in payload.pencilDrawings { try page(drawing.bookID, drawing.page) }
+        for entry in payload.analytics.history {
+            try page(entry.bookID, entry.startPage)
+            try page(entry.bookID, entry.endPage)
+            try require(entry.pagesRead >= 0 && entry.seconds.isFinite && entry.seconds >= 0, "invalid history values.")
+        }
+        try require(payload.analytics.dailyGoalPages > 0, "invalid reading goal.")
+        for entry in payload.readingJournal ?? [] {
+            try require((0...5).contains(entry.rating), "invalid journal reference or rating.")
+        }
+    }
+}

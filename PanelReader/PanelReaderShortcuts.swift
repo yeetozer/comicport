@@ -55,30 +55,30 @@ private enum PanelShortcutData {
 }
 
 struct ContinueReadingIntent: AppIntent {
-    static var title: LocalizedStringResource = "ComicPort'ta Okumaya Devam Et"
-    static var description = IntentDescription("Son okuduğun çizgi romanı ComicPort'ta açar.")
+    static var title: LocalizedStringResource = "Continue Reading in ComicPort"
+    static var description = IntentDescription("Opens your most recently read comic in ComicPort.")
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         PanelShortcutBridge.setPending(.continueReading)
-        return .result(dialog: "Son okuduğun çizgi roman açılıyor.")
+        return .result(dialog: "Opening your most recently read comic.")
     }
 }
 
 struct RandomComicIntent: AppIntent {
-    static var title: LocalizedStringResource = "Rastgele Çizgi Roman Aç"
-    static var description = IntentDescription("Cihazındaki kütüphaneden rastgele bir çizgi roman açar.")
+    static var title: LocalizedStringResource = "Open Random Comic"
+    static var description = IntentDescription("Opens a random comic from the library on this device.")
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         PanelShortcutBridge.setPending(.randomComic)
-        return .result(dialog: "Kütüphanenden rastgele bir çizgi roman seçiyorum.")
+        return .result(dialog: "Choosing a random comic from your library.")
     }
 }
 
 struct OpenSmartSearchIntent: AppIntent {
-    static var title: LocalizedStringResource = "ComicPort Akıllı Arama"
-    static var description = IntentDescription("ComicPort'un offline akıllı arama ekranını açar.")
+    static var title: LocalizedStringResource = "ComicPort Smart Search"
+    static var description = IntentDescription("Opens ComicPort’s offline smart search.")
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
@@ -88,8 +88,8 @@ struct OpenSmartSearchIntent: AppIntent {
 }
 
 struct OpenReadingJournalIntent: AppIntent {
-    static var title: LocalizedStringResource = "Reading Journal'ı Aç"
-    static var description = IntentDescription("ComicPort okuma günlüğünü açar.")
+    static var title: LocalizedStringResource = "Open Reading Journal"
+    static var description = IntentDescription("Opens your ComicPort reading journal.")
     static var openAppWhenRun: Bool = true
 
     func perform() async throws -> some IntentResult {
@@ -99,12 +99,12 @@ struct OpenReadingJournalIntent: AppIntent {
 }
 
 struct ShowReadingGoalIntent: AppIntent {
-    static var title: LocalizedStringResource = "Bugünkü Okuma Hedefimi Göster"
-    static var description = IntentDescription("ComicPort'u açmadan bugünkü sayfa hedefini ve ilerlemeni gösterir.")
+    static var title: LocalizedStringResource = "Show Today’s Reading Goal"
+    static var description = IntentDescription("Shows today’s page goal and progress without opening ComicPort.")
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
         guard let analytics = PanelShortcutData.analytics() else {
-            return .result(dialog: "Henüz okunacak bir ComicPort istatistiği bulunamadı.")
+            return .result(dialog: "No ComicPort reading statistics yet.")
         }
 
         let key = PanelDayKey.string(.now)
@@ -113,9 +113,9 @@ struct ShowReadingGoalIntent: AppIntent {
         let remaining = max(0, goal - pages)
 
         if remaining == 0 {
-            return .result(dialog: "Bugünkü hedefin tamamlandı: \(pages) / \(goal) sayfa.")
+            return .result(dialog: "Today’s goal is complete: \(pages) of \(goal) pages.")
         }
-        return .result(dialog: "Bugün \(pages) / \(goal) sayfa okudun. Hedefe \(remaining) sayfa kaldı.")
+        return .result(dialog: "You read \(pages) of \(goal) pages today. \(remaining) pages to go.")
     }
 }
 
@@ -123,26 +123,26 @@ struct PanelReaderAppShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(
             intent: ContinueReadingIntent(),
-            phrases: ["\(.applicationName) ile okumaya devam et"],
-            shortTitle: "Okumaya Devam",
+            phrases: ["Continue reading in \(.applicationName)"],
+            shortTitle: "Continue Reading",
             systemImageName: "book.pages.fill"
         )
         AppShortcut(
             intent: RandomComicIntent(),
-            phrases: ["\(.applicationName) rastgele çizgi roman aç"],
-            shortTitle: "Rastgele Çizgi Roman",
+            phrases: ["Open a random comic in \(.applicationName)"],
+            shortTitle: "Random Comic",
             systemImageName: "shuffle"
         )
         AppShortcut(
             intent: ShowReadingGoalIntent(),
-            phrases: ["\(.applicationName) okuma hedefimi göster"],
-            shortTitle: "Okuma Hedefim",
+            phrases: ["Show my reading goal in \(.applicationName)"],
+            shortTitle: "My Reading Goal",
             systemImageName: "target"
         )
         AppShortcut(
             intent: OpenSmartSearchIntent(),
-            phrases: ["\(.applicationName) akıllı aramayı aç"],
-            shortTitle: "Akıllı Arama",
+            phrases: ["Open smart search in \(.applicationName)"],
+            shortTitle: "Smart Search",
             systemImageName: "text.viewfinder"
         )
     }

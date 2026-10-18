@@ -25,28 +25,29 @@ struct PanelBackupPayload: Codable {
     let createdAt: Date
     let appVersion: String
 
-    let books: [ComicBook]
-    let analytics: ReadingAnalytics
+    var books: [ComicBook]
+    var analytics: ReadingAnalytics
     let achievementProfile: AchievementProfile
-    let readerSettingsByBook: [String: ReaderSettings]
+    var readerSettingsByBook: [String: ReaderSettings]
     let defaultReaderSettings: ReaderSettings
-    let storyArcs: [StoryArc]
+    var storyArcs: [StoryArc]
     let autoOpenNextIssue: Bool
-    let textNotes: [PageTextNote]
-    let savedPanels: [SavedPanel]
-    let readingJournal: [ReadingJournalEntry]?
+    var textNotes: [PageTextNote]
+    var savedPanels: [SavedPanel]
+    var readingJournal: [ReadingJournalEntry]?
 
     // Schema 3. Optional so schema 1/2 backup files still decode.
     let smartCollections: [ComicPortSmartCollection]?
 
-    let pencilDrawings: [BackupPencilDrawing]
-    let panelImages: [BackupPanelImage]
-    let bookInfoFiles: [BackupBookInfo]
+    var pencilDrawings: [BackupPencilDrawing]
+    var panelImages: [BackupPanelImage]
+    var bookInfoFiles: [BackupBookInfo]
 
     let accentThemeRawValue: String
 }
 
 struct PanelBackupRestoreResult {
+    let skippedItems: [String]
     let accentTheme: PanelAccentTheme?
     let importedBooks: Int
     let historyEntries: Int

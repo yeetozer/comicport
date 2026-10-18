@@ -28,12 +28,12 @@ struct SmartSearchView: View {
                         emptySearchIntro
                     } else if results.isEmpty {
                         ContentUnavailableView(
-                            "Sonuç bulunamadı",
+                            "No results found",
                             systemImage: "text.magnifyingglass",
                             description: Text(
                                 indexedBooks == 0
-                                ? "Önce kütüphaneyi indeksle; başlık eşleşmeleri dışında sayfa içi metin aranamaz."
-                                : "Farklı bir kelime deneyebilir veya indekslenmemiş kitapları indeksleyebilirsin."
+                                ? "Index your library to search page text as well as titles."
+                                : "Try another word or index comics that are not searchable yet."
                             )
                         )
                         .padding(.top, 35)
@@ -44,7 +44,7 @@ struct SmartSearchView: View {
                 .padding(20)
                 .padding(.bottom, 80)
             }
-            .navigationTitle("Akıllı Arama")
+            .navigationTitle("Smart Search")
             .searchable(text: $query, prompt: "Joker, Dick Grayson, replik…")
             .task {
                 await store.loadSmartSearchCacheIfNeeded()
@@ -61,7 +61,7 @@ struct SmartSearchView: View {
                     .environmentObject(store)
                     .preferredColorScheme(.dark)
             }
-            .alert("Bu çizgi roman cihazda değil", isPresented: Binding(
+            .alert("This comic is not on this device", isPresented: Binding(
                 get: { unavailableMessage != nil },
                 set: { if !$0 { unavailableMessage = nil } }
             )) {
@@ -87,13 +87,13 @@ struct SmartSearchView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Offline Smart Search")
                         .font(.largeTitle.bold())
-                    Text("Konuşma balonlarını cihaz üzerinde OCR ile indeksle ve doğrudan sayfaya git.")
+                    Text("Index dialogue with on-device OCR and jump directly to a page.")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
 
-            Label("İnternet bağlantısı veya sunucu kullanılmaz.", systemImage: "iphone.gen3.radiowaves.left.and.right.slash")
+            Label("No internet connection or server is used.", systemImage: "iphone.gen3.radiowaves.left.and.right.slash")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -112,9 +112,9 @@ struct SmartSearchView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Arama İndeksi")
+                    Text("Search Index")
                         .font(.title2.bold())
-                    Text("\(indexedBooks) çizgi roman • \(indexedPages) sayfa aranabilir")
+                    Text("\(indexedBooks) comics • \(indexedPages) searchable pages")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -125,7 +125,7 @@ struct SmartSearchView: View {
                     Button {
                         store.startSmartSearchIndexing()
                     } label: {
-                        Label(indexedBooks == 0 ? "Kütüphaneyi İndeksle" : "Eksikleri İndeksle", systemImage: "text.badge.plus")
+                        Label(indexedBooks == 0 ? "Index Library" : "Index Missing", systemImage: "text.badge.plus")
                     }
                     .buttonStyle(.borderedProminent)
 
@@ -133,14 +133,14 @@ struct SmartSearchView: View {
                         Button {
                             store.startSmartSearchIndexing(forceAll: true)
                         } label: {
-                            Label("Tümünü Yeniden İndeksle", systemImage: "arrow.clockwise")
+                            Label("Reindex All", systemImage: "arrow.clockwise")
                         }
 
                         if indexedBooks > 0 {
                             Button(role: .destructive) {
                                 store.clearAllSmartSearchIndexes()
                             } label: {
-                                Label("Arama İndeksini Sil", systemImage: "trash")
+                                Label("Delete Search Index", systemImage: "trash")
                             }
                         }
                     } label: {
@@ -151,7 +151,7 @@ struct SmartSearchView: View {
                     Button(role: .destructive) {
                         store.cancelSmartSearchIndexing()
                     } label: {
-                        Label("İptal", systemImage: "xmark.circle")
+                        Label("Cancel", systemImage: "xmark.circle")
                     }
                     .buttonStyle(.bordered)
                 }
@@ -173,7 +173,7 @@ struct SmartSearchView: View {
                         .tint(accentColor)
 
                     HStack {
-                        Text("Sayfa \(progress.page)/\(max(1, progress.totalPages))")
+                        Text("Page \(progress.page)/\(max(1, progress.totalPages))")
                         Spacer()
                         Text("%\(Int((progress.overallFraction * 100).rounded()))")
                     }
@@ -185,7 +185,7 @@ struct SmartSearchView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                Text("İndeks yalnızca sen istediğinde oluşturulur. OCR metni küçük JSON dosyaları olarak bu cihazda saklanır; PDF/CBZ dosyaların değiştirilmez.")
+                Text("Indexing starts only when you ask. OCR text is stored as small JSON files on this device. Your PDF and CBZ files are not changed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -196,18 +196,18 @@ struct SmartSearchView: View {
 
     private var emptySearchIntro: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Neler arayabilirsin?")
+            Text("What can you search for?")
                 .font(.title2.bold())
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 12)], spacing: 12) {
-                example("Karakter", "Dick Grayson", "person.text.rectangle")
-                example("Kötü karakter", "Joker", "theatermasks.fill")
-                example("Replik", "I am vengeance", "quote.bubble.fill")
-                example("Yer / kavram", "Gotham", "building.2.fill")
+                example("Character", "Dick Grayson", "person.text.rectangle")
+                example("Villain", "Joker", "theatermasks.fill")
+                example("Quote", "I am vengeance", "quote.bubble.fill")
+                example("Place / concept", "Gotham", "building.2.fill")
             }
 
             if indexedBooks == 0 {
-                Label("Başlamak için yukarıdaki “Kütüphaneyi İndeksle” düğmesine bas.", systemImage: "arrow.up")
+                Label("Choose Index Library above to get started.", systemImage: "arrow.up")
                     .font(.subheadline)
                     .foregroundStyle(accentColor)
                     .padding(.top, 5)
@@ -239,11 +239,11 @@ struct SmartSearchView: View {
     private var resultList: some View {
         LazyVStack(spacing: 10) {
             HStack {
-                Text("\(results.count) sonuç")
+                Text("\(results.count) results")
                     .font(.headline)
                 Spacer()
                 if results.count >= 120 {
-                    Text("İlk 120 sonuç gösteriliyor")
+                    Text("Showing the first 120 results")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -269,7 +269,7 @@ struct SmartSearchView: View {
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if let page = hit.page {
-                                    Text("• Sayfa \(page + 1)")
+                                    Text("• Page \(page + 1)")
                                         .font(.caption.bold())
                                         .foregroundStyle(accentColor)
                                 }
@@ -318,7 +318,7 @@ struct SmartSearchView: View {
         guard let book = store.books.first(where: { $0.id == hit.bookID }) else { return }
 
         guard book.fileAvailable else {
-            unavailableMessage = "Bu sonuç kayıtlı OCR indeksinden geliyor fakat çizgi roman dosyası şu anda bu cihazda değil. Aynı çizgi romanı yeniden içe aktarınca sayfaya geri dönebilirsin."
+            unavailableMessage = "This result comes from a saved OCR index, but the comic is not on this device. Import it again to open this page."
             return
         }
 
@@ -349,14 +349,14 @@ struct BookSearchIndexCard: View {
                     Button(role: .destructive) {
                         store.cancelSmartSearchIndexing()
                     } label: {
-                        Label("İptal", systemImage: "xmark.circle")
+                        Label("Cancel", systemImage: "xmark.circle")
                     }
                     .buttonStyle(.bordered)
                 } else if book.fileAvailable {
                     Button {
                         store.startSmartSearchIndexing(forceAll: true, only: book.id)
                     } label: {
-                        Label(isIndexed ? "Yeniden İndeksle" : "Arama için İndeksle", systemImage: isIndexed ? "arrow.clockwise" : "text.badge.plus")
+                        Label(isIndexed ? "Reindex" : "Index for Search", systemImage: isIndexed ? "arrow.clockwise" : "text.badge.plus")
                     }
                     .buttonStyle(.borderedProminent)
                 }
@@ -365,19 +365,19 @@ struct BookSearchIndexCard: View {
             if isCurrentJob, let progress = store.smartSearchProgress {
                 ProgressView(value: progress.totalPages > 0 ? Double(progress.page) / Double(progress.totalPages) : 0)
                     .tint(accentColor)
-                Text("Sayfa \(progress.page)/\(max(1, progress.totalPages)) cihaz üzerinde OCR ile okunuyor…")
+                Text("Reading page \(progress.page)/\(max(1, progress.totalPages)) with on-device OCR…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if isIndexed {
-                Label("Bu çizgi romanın konuşma balonları ve metinleri arama için hazır.", systemImage: "checkmark.circle.fill")
+                Label("This comic’s dialogue and text are ready to search.", systemImage: "checkmark.circle.fill")
                     .font(.subheadline)
                     .foregroundStyle(.green)
             } else if book.fileAvailable {
-                Text("İndeksledikten sonra bu çizgi romanın içindeki isim, kelime ve replikleri internetsiz arayabilirsin.")
+                Text("Once indexed, search names, words and dialogue in this comic offline.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
-                Text("Dosya cihazda olmadığı için yeniden OCR indekslemesi yapılamaz. Varsa daha önce oluşturulmuş indeks korunur.")
+                Text("The file must be on this device to reindex it. Any existing index is preserved.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

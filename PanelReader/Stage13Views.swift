@@ -43,15 +43,15 @@ struct LibraryHealthView: View {
                         issues(snapshot)
                     } else if progress == nil {
                         ContentUnavailableView(
-                            "Kütüphane taranmaya hazır",
+                            "Ready to scan your library",
                             systemImage: "stethoscope",
-                            description: Text("Hızlı tarama dosya, kapak, boyut ve duplicate sorunlarını kontrol eder. Derin tarama ayrıca PDF/CBZ sayfalarını doğrular.")
+                            description: Text("Quick Scan checks files, covers, sizes and duplicates. Deep Scan also validates PDF and CBZ pages.")
                         )
                         .padding(.top, 45)
                     }
 
                     if let cleanupMessage {
-                        Label(cleanupMessage, systemImage: "checkmark.circle.fill")
+                        Label(ComicPortRelease.copy(cleanupMessage), systemImage: "checkmark.circle.fill")
                             .font(.subheadline)
                             .foregroundStyle(.green)
                     }
@@ -86,7 +86,7 @@ struct LibraryHealthView: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Library Health Center").font(.largeTitle.bold())
-                Text("Kütüphaneyi bozuk dosya, duplicate, eksik kapak, büyük dosya ve seri boşlukları için kontrol et.")
+                Text("Check for damaged files, duplicates, missing covers, large files and gaps in series.")
                     .foregroundStyle(.secondary)
             }
             Spacer()
@@ -107,7 +107,7 @@ struct LibraryHealthView: View {
             Button {
                 startScan(deep: false)
             } label: {
-                Label("Hızlı Tara", systemImage: "bolt.fill")
+                Label("Quick Scan", systemImage: "bolt.fill")
             }
             .buttonStyle(.borderedProminent)
             .disabled(progress != nil)
@@ -115,7 +115,7 @@ struct LibraryHealthView: View {
             Button {
                 startScan(deep: true)
             } label: {
-                Label("Derin Tara", systemImage: "doc.text.magnifyingglass")
+                Label("Deep Scan", systemImage: "doc.text.magnifyingglass")
             }
             .buttonStyle(.bordered)
             .disabled(progress != nil)
@@ -126,7 +126,7 @@ struct LibraryHealthView: View {
                     scanTask = nil
                     progress = nil
                 } label: {
-                    Label("İptal", systemImage: "xmark.circle")
+                    Label("Cancel", systemImage: "xmark.circle")
                 }
                 .buttonStyle(.bordered)
             }
@@ -137,8 +137,8 @@ struct LibraryHealthView: View {
                 Task { @MainActor in
                     let freed = await store.performSafeCacheCleanup()
                     cleanupMessage = freed > 0
-                        ? "\(LibraryHealthScanner.formatBytes(freed)) güvenli cache temizlendi."
-                        : "Temizlenecek yetim cache bulunmadı."
+                        ? "Removed \(LibraryHealthScanner.formatBytes(freed)) of safely rebuildable cache."
+                        : "No unused cache files to remove."
                     startScan(deep: false)
                 }
             } label: {
@@ -151,10 +151,10 @@ struct LibraryHealthView: View {
 
     private func summary(_ snapshot: LibraryHealthSnapshot) -> some View {
         HStack(spacing: 12) {
-            healthStat("\(snapshot.availableBooks)/\(snapshot.totalBooks)", "cihazda", "internaldrive.fill")
-            healthStat("\(snapshot.criticalCount)", "kritik", "exclamationmark.octagon.fill")
-            healthStat("\(snapshot.warningCount)", "uyarı", "exclamationmark.triangle.fill")
-            healthStat(LibraryHealthScanner.formatBytes(snapshot.totalBytes), "kitap boyutu", "externaldrive.fill")
+            healthStat("\(snapshot.availableBooks)/\(snapshot.totalBooks)", "on device", "internaldrive.fill")
+            healthStat("\(snapshot.criticalCount)", "critical", "exclamationmark.octagon.fill")
+            healthStat("\(snapshot.warningCount)", "warnings", "exclamationmark.triangle.fill")
+            healthStat(LibraryHealthScanner.formatBytes(snapshot.totalBytes), "file size", "externaldrive.fill")
         }
     }
 
@@ -176,14 +176,14 @@ struct LibraryHealthView: View {
 
         if all.isEmpty {
             ContentUnavailableView(
-                "Kütüphane temiz",
+                "Your library looks good",
                 systemImage: "checkmark.seal.fill",
-                description: Text(snapshot.deepScan ? "Derin taramada sorun bulunmadı." : "Hızlı taramada sorun bulunmadı.")
+                description: Text(snapshot.deepScan ? "No issues found in the deep scan." : "No issues found in the quick scan.")
             )
             .padding(.top, 20)
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Text("Bulunanlar").font(.title2.bold())
+                Text("Findings").font(.title2.bold())
                 ForEach(all) { issue in
                     issueRow(issue)
                 }
@@ -200,7 +200,7 @@ struct LibraryHealthView: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 Text(issue.title).font(.headline)
-                Text(issue.detail).font(.subheadline).foregroundStyle(.secondary)
+                Text(ComicPortRelease.copy(issue.detail)).font(.subheadline).foregroundStyle(.secondary)
 
                 HStack {
                     if issue.kind == .missingCover, let bookID = issue.bookID {
@@ -213,7 +213,7 @@ struct LibraryHealthView: View {
                             }
                         } label: {
                             if repairingBookID == bookID { ProgressView() }
-                            else { Label("Kapağı Onar", systemImage: "photo.badge.arrow.down") }
+                            else { Label("Repair Cover", systemImage: "photo.badge.arrow.down") }
                         }
                         .buttonStyle(.bordered)
                         .disabled(repairingBookID != nil)
@@ -223,7 +223,7 @@ struct LibraryHealthView: View {
                         Button {
                             activeBook = Stage13BookRoute(id: bookID)
                         } label: {
-                            Label(issue.kind == .veryLargeFile ? "Optimizer'a Git" : "Kitabı Aç", systemImage: "chevron.right")
+                            Label(issue.kind == .veryLargeFile ? "Open Storage Optimizer" : "Open Comic", systemImage: "chevron.right")
                         }
                         .buttonStyle(.bordered)
                     }
@@ -242,7 +242,7 @@ struct LibraryHealthView: View {
                 kind: .seriesGap,
                 severity: .info,
                 title: gap.seriesTitle,
-                detail: "Okuma sırasında #\(gap.issueNumber) eksik görünüyor\(gap.volume.map { " • Vol. \($0)" } ?? "").",
+                detail: "Issue #\(gap.issueNumber) may be missing from this reading order\(gap.volume.map { " • Vol. \($0)" } ?? "").",
                 bookID: nil,
                 relatedBookIDs: [],
                 seriesID: gap.seriesID
@@ -255,7 +255,7 @@ struct LibraryHealthView: View {
                 kind: .duplicateIssueNumber,
                 severity: .warning,
                 title: item.seriesTitle,
-                detail: "Aynı seri numarası #\(formatIssue13(item.issueNumber)) birden fazla kayıtta görünüyor.",
+                detail: "Issue #\(formatIssue13(item.issueNumber)) appears in more than one record.",
                 bookID: item.bookIDs.first,
                 relatedBookIDs: Array(item.bookIDs.dropFirst()),
                 seriesID: item.seriesID
@@ -266,7 +266,7 @@ struct LibraryHealthView: View {
 
     private func startScan(deep: Bool) {
         scanTask?.cancel()
-        progress = (0, max(1, store.books.count), "Hazırlanıyor…")
+        progress = (0, max(1, store.books.count), "Preparing…")
         cleanupMessage = nil
 
         let descriptors = store.books.map {
@@ -348,8 +348,8 @@ struct SmartReadingOrder2View: View {
                 VStack(alignment: .leading, spacing: 18) {
                     HStack {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Smart Reading Order 2.0").font(.largeTitle.bold())
-                            Text("Seri sırasını kontrol et, eksik/tekrar eden sayıları bul ve ilişkili okumaları keşfet.")
+                            Text("Smart Reading Order").font(.largeTitle.bold())
+                            Text("Check series order, find missing or duplicate issues and discover related reading.")
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -359,10 +359,10 @@ struct SmartReadingOrder2View: View {
                     let duplicateCount = series.reduce(0) { $0 + SeriesService.duplicateIssueNumbers(in: $1, from: store.libraryBooks).count }
 
                     HStack(spacing: 12) {
-                        status("\(series.count)", "seri", "books.vertical.fill")
-                        status("\(missingCount)", "eksik sayı", "number.square.fill")
-                        status("\(duplicateCount)", "tekrar", "square.stack.3d.up.fill")
-                        status("\(store.storyArcs.count)", "özel sıra", "point.3.connected.trianglepath.dotted")
+                        status("\(series.count)", "series", "books.vertical.fill")
+                        status("\(missingCount)", "missing issues", "number.square.fill")
+                        status("\(duplicateCount)", "duplicates", "square.stack.3d.up.fill")
+                        status("\(store.storyArcs.count)", "custom order", "point.3.connected.trianglepath.dotted")
                     }
 
                     LazyVStack(spacing: 12) {
@@ -382,9 +382,9 @@ struct SmartReadingOrder2View: View {
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(item.title).font(.headline).foregroundStyle(.primary)
                                         HStack(spacing: 8) {
-                                            Text("\(item.bookIDs.count) kitap")
-                                            if !missing.isEmpty { Text("• \(missing.count) eksik") }
-                                            if !duplicates.isEmpty { Text("• \(duplicates.count) tekrar") }
+                                            Text("\(item.bookIDs.count) comics")
+                                            if !missing.isEmpty { Text("• \(missing.count) missing") }
+                                            if !duplicates.isEmpty { Text("• \(duplicates.count) duplicates") }
                                         }
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -402,7 +402,7 @@ struct SmartReadingOrder2View: View {
                 .padding(20)
                 .padding(.bottom, 80)
             }
-            .navigationTitle("Reading Order 2.0")
+            .navigationTitle("Reading Order")
             .task(id: signature) {
                 series = SeriesService.series(from: store.libraryBooks)
             }
@@ -444,11 +444,11 @@ struct SeriesReadingOrder2Card: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
             HStack {
-                Label("Reading Order 2.0", systemImage: "point.3.connected.trianglepath.dotted")
+                Label("Reading Order", systemImage: "point.3.connected.trianglepath.dotted")
                     .font(.title2.bold())
                 Spacer()
                 if missing.isEmpty && duplicates.isEmpty {
-                    Label("Sıra temiz", systemImage: "checkmark.circle.fill")
+                    Label("Reading order looks good", systemImage: "checkmark.circle.fill")
                         .font(.caption.bold())
                         .foregroundStyle(.green)
                 }
@@ -456,7 +456,7 @@ struct SeriesReadingOrder2Card: View {
 
             if !missing.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Eksik görünen sayılar").font(.headline)
+                    Text("Potentially missing issues").font(.headline)
                     Text(missing.prefix(12).map {
                         ($0.volume.map { "Vol. \($0) " } ?? "") + "#\($0.issueNumber)"
                     }.joined(separator: " • "))
@@ -467,7 +467,7 @@ struct SeriesReadingOrder2Card: View {
 
             if !duplicates.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("Tekrar eden seri numaraları").font(.headline)
+                    Text("Duplicate issue numbers").font(.headline)
                     Text(duplicates.prefix(8).map { "#\(formatIssue13($0.issueNumber))" }.joined(separator: " • "))
                         .font(.subheadline)
                         .foregroundStyle(.orange)
@@ -476,10 +476,10 @@ struct SeriesReadingOrder2Card: View {
 
             if !suggestions.isEmpty {
                 Divider().opacity(0.15)
-                Text("İlişkili okuma adayları")
+                Text("Related reading")
                     .font(.headline)
 
-                Text("Bunlar kanonik crossover sırası iddiası değildir; yerel katalogdaki ortak karakter, tema ve yaratıcı eşleşmelerinden üretilen offline önerilerdir.")
+                Text("These are offline suggestions based on shared characters, themes and creators in the local catalog, not an official crossover order.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

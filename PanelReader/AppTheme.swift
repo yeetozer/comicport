@@ -50,7 +50,7 @@ final class PanelThemeStore: ObservableObject {
     init() {
         if let raw = UserDefaults.standard.string(forKey: Self.key),
            let saved = PanelAccentTheme(rawValue: raw) {
-            accent = saved
+            accent = saved.releaseSelection
         } else {
             accent = .blue
         }

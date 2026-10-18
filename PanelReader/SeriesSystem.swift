@@ -112,9 +112,9 @@ enum ReadingOrder2Service {
             } else if let tag = sharedTags.sorted().first {
                 reason = "Ortak tema: \(display(tag))"
             } else if let creator = sharedCreators.sorted().first {
-                reason = "Ortak yaratıcı: \(display(creator))"
+                reason = "Shared creator: \(display(creator))"
             } else {
-                reason = "Aynı yayın evrenine yakın"
+                reason = "Related publishing universe"
             }
 
             output.append(
@@ -130,7 +130,7 @@ enum ReadingOrder2Service {
         return Array(
             output.sorted {
                 if abs($0.score - $1.score) > 0.01 { return $0.score > $1.score }
-                return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                return ComicDisplayTitle.clean($0.title).localizedStandardCompare(ComicDisplayTitle.clean($1.title)) == .orderedAscending
             }.prefix(limit)
         )
     }
@@ -162,7 +162,7 @@ enum SeriesService {
             return cached.value
         }
 
-        var working = title
+        var working = ComicDisplayTitle.clean(title)
             .replacingOccurrences(of: "_", with: " ")
             .replacingOccurrences(of: ".", with: " ")
 
@@ -240,7 +240,7 @@ enum SeriesService {
         }
         .sorted { lhs, rhs in
             if lhs.bookIDs.count == rhs.bookIDs.count {
-                return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+                return ComicDisplayTitle.clean(lhs.title).localizedStandardCompare(ComicDisplayTitle.clean(rhs.title)) == .orderedAscending
             }
             return lhs.bookIDs.count > rhs.bookIDs.count
         }
@@ -358,6 +358,20 @@ enum SeriesService {
         }.max() ?? 0
     }
 
+    /// Title order is presentation-only; never reorder persisted/imported metadata.
+    static func titleOrder(_ lhs: ComicBook, _ rhs: ComicBook) -> Bool {
+        let comparison = ComicDisplayTitle.clean(lhs.title)
+            .localizedStandardCompare(ComicDisplayTitle.clean(rhs.title))
+        if comparison != .orderedSame { return comparison == .orderedAscending }
+        let a = parse(lhs.title)
+        let b = parse(rhs.title)
+        let seriesComparison = a.seriesTitle.localizedStandardCompare(b.seriesTitle)
+        if seriesComparison != .orderedSame { return seriesComparison == .orderedAscending }
+        if (a.volume ?? 0) != (b.volume ?? 0) { return (a.volume ?? 0) < (b.volume ?? 0) }
+        if (a.issueNumber ?? 0) != (b.issueNumber ?? 0) { return (a.issueNumber ?? 0) < (b.issueNumber ?? 0) }
+        return lhs.id.uuidString < rhs.id.uuidString
+    }
+
     private static func readingOrder(_ lhs: ComicBook, _ rhs: ComicBook) -> Bool {
         let a = parse(lhs.title)
         let b = parse(rhs.title)
@@ -371,8 +385,7 @@ enum SeriesService {
         case (_?, nil): return true
         case (nil, _?): return false
         default:
-            if lhs.addedAt != rhs.addedAt { return lhs.addedAt < rhs.addedAt }
-            return lhs.title.localizedCaseInsensitiveCompare(rhs.title) == .orderedAscending
+            return titleOrder(lhs, rhs)
         }
     }
 

@@ -36,10 +36,10 @@ struct CompletionJournalEditor: View {
                         }
 
                         VStack(alignment: .leading, spacing: 5) {
-                            Text("Okuma tamamlandı")
+                            Text("Reading complete")
                                 .font(.caption.bold())
                                 .foregroundStyle(accentColor)
-                            Text(book?.title ?? "Çizgi Roman")
+                            Text(book?.title ?? "Comic")
                                 .font(.title2.bold())
                                 .lineLimit(3)
                             Text(completedAt.formatted(date: .long, time: .shortened))
@@ -49,7 +49,7 @@ struct CompletionJournalEditor: View {
                     }
 
                     VStack(alignment: .leading, spacing: 9) {
-                        Text("Puanın").font(.headline)
+                        Text("Your rating").font(.headline)
                         HStack(spacing: 10) {
                             ForEach(1...5, id: \.self) { value in
                                 Button {
@@ -65,27 +65,27 @@ struct CompletionJournalEditor: View {
                     }
 
                     VStack(alignment: .leading, spacing: 9) {
-                        Text("Okuma notun").font(.headline)
+                        Text("Your reading note").font(.headline)
                         TextEditor(text: $note)
                             .frame(minHeight: 130)
                             .padding(10)
                             .scrollContentBackground(.hidden)
                             .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
-                        Text("Spoiler, sevdiğin sahne, düşüncen veya ileride hatırlamak istediğin herhangi bir şey.")
+                        Text("Spoilers, favorite scenes, thoughts or anything you want to remember.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
 
-                    Toggle("Bir gün tekrar okurum", isOn: $wouldReread)
+                    Toggle("Read again someday", isOn: $wouldReread)
                         .tint(accentColor)
 
                     if !bookPanels.isEmpty {
                         VStack(alignment: .leading, spacing: 9) {
-                            Text("Bu okumadan favori panel").font(.headline)
-                            Picker("Favori panel", selection: $favoritePanelID) {
-                                Text("Seçme").tag(Optional<UUID>.none)
+                            Text("Favorite panel from this reading").font(.headline)
+                            Picker("Favorite panel", selection: $favoritePanelID) {
+                                Text("None").tag(Optional<UUID>.none)
                                 ForEach(bookPanels) { panel in
-                                    Text("Sayfa \(panel.page + 1)").tag(Optional(panel.id))
+                                    Text("Page \(panel.page + 1)").tag(Optional(panel.id))
                                 }
                             }
                             .pickerStyle(.menu)
@@ -98,14 +98,14 @@ struct CompletionJournalEditor: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Şimdi Değil") {
+                    Button("Not Now") {
                         store.dismissCompletionJournalPrompt(bookID: bookID)
                         dismiss()
                     }
                 }
 
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Kaydet") {
+                    Button("Save") {
                         store.saveReadingJournalEntry(
                             bookID: bookID,
                             completedAt: completedAt,
@@ -156,9 +156,9 @@ struct ReadingJournalView: View {
 
                     if store.readingJournalEntries.isEmpty {
                         ContentUnavailableView(
-                            "Reading Journal boş",
+                            "Your reading journal is empty",
                             systemImage: "book.closed.fill",
-                            description: Text("Bir çizgi romanı bitirdiğinde puanını ve düşüncelerini buraya kaydedebilirsin.")
+                            description: Text("Finish a comic to save your rating and thoughts here.")
                         )
                         .padding(.top, 45)
                     } else if filteredEntries.isEmpty {
@@ -176,7 +176,7 @@ struct ReadingJournalView: View {
                 .padding(.bottom, 80)
             }
             .navigationTitle("Reading Journal")
-            .searchable(text: $search, prompt: "Kitap veya not ara")
+            .searchable(text: $search, prompt: "Search comics or notes")
             .sheet(item: $selectedEntry) { entry in
                 JournalEntryDetailView(entry: entry)
                     .environmentObject(store)
@@ -191,9 +191,9 @@ struct ReadingJournalView: View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Okuma günlüğün")
+                    Text("Your reading journal")
                         .font(.largeTitle.bold())
-                    Text("Bitirdiğin çizgi romanları yalnızca sayma; yıllar sonra ne düşündüğünü de hatırla.")
+                    Text("Keep more than a count of finished comics. Remember what you thought about them, years later.")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -203,10 +203,10 @@ struct ReadingJournalView: View {
             }
 
             HStack(spacing: 10) {
-                stat("\(summary.totalEntries)", "kayıt")
-                stat(summary.averageRating > 0 ? String(format: "%.1f ★", summary.averageRating) : "—", "ortalama")
-                stat("\(summary.rereadCount)", "tekrar okurum")
-                stat("\(summary.notesCount)", "not")
+                stat("\(summary.totalEntries)", "entries")
+                stat(summary.averageRating > 0 ? String(format: "%.1f ★", summary.averageRating) : "—", "average")
+                stat("\(summary.rereadCount)", "read again")
+                stat("\(summary.notesCount)", "notes")
             }
         }
         .padding(18)
@@ -280,7 +280,7 @@ struct ReadingJournalView: View {
                     }
 
                     if entry.wouldReread {
-                        Label("Tekrar okurum", systemImage: "arrow.clockwise")
+                        Label("Read again", systemImage: "arrow.clockwise")
                             .font(.caption2.bold())
                             .foregroundStyle(accentColor)
                     }
@@ -325,25 +325,25 @@ private struct JournalEntryDetailView: View {
                     }
 
                     if entry.wouldReread {
-                        Label("Tekrar okumak istiyorsun", systemImage: "arrow.clockwise.circle.fill")
+                        Label("You want to read this again", systemImage: "arrow.clockwise.circle.fill")
                     }
 
                     if let panelID = entry.favoritePanelID,
                        let panel = store.savedPanels.first(where: { $0.id == panelID }) {
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Favori panel").font(.headline)
-                            Text("My Panels • Sayfa \(panel.page + 1)")
+                            Text("Favorite panel").font(.headline)
+                            Text("My Panels • Page \(panel.page + 1)")
                                 .foregroundStyle(.secondary)
                         }
                     }
                 }
                 .padding()
             }
-            .navigationTitle("Günlük Kaydı")
+            .navigationTitle("Journal Entry")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Kapat") { dismiss() }
+                    Button("Close") { dismiss() }
                 }
                 ToolbarItem(placement: .destructiveAction) {
                     Button(role: .destructive) {

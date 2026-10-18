@@ -5,37 +5,106 @@ import UIKit
 // MARK: - Dashboard Navigation
 
 enum DashboardSection: String, CaseIterable, Identifiable, Hashable {
-    case home = "Ana Sayfa"
-    case library = "Kütüphanem"
-    case reading = "Okunuyor"
-    case toRead = "Okunacak"
-    case completed = "Tamamlandı"
-    case recentAdded = "Son Eklenenler"
-    case recentRead = "Son Okunanlar"
-    case favorites = "Favoriler"
-    case characters = "Karakterler"
-    case series = "Seriler"
-    case achievements = "Başarımlar"
-    case lists = "Listelerim"
-    case notes = "Notlar"
-    case myPanels = "My Panels"
-    case smartSearch = "Akıllı Arama"
-    case readingOrder2 = "Reading Order 2.0"
-    case libraryHealth = "Library Health"
-    case libraryTools = "Library Tools"
-    case smartCollections = "Smart Collections"
-    case sourcesSync = "Sources & Sync"
-    case journal = "Reading Journal"
-    case statistics = "İstatistikler"
-    case wrapped = "ComicPort Wrapped"
-    case history = "Okuma Geçmişi"
-    case saved = "Kaydedilenler"
-    case settings = "Ayarlar"
+    case home
+    case library
+    case reading
+    case toRead
+    case completed
+    case recentAdded
+    case recentRead
+    case favorites
+    case characters
+    case series
+    case achievements
+    case lists
+    case notes
+    case myPanels
+    case smartSearch
+    case readingOrder2
+    case libraryHealth
+    case libraryTools
+    case smartCollections
+    case sourcesSync
+    case journal
+    case statistics
+    case wrapped
+    case history
+    case saved
+    case settings
+
+    case browse
+
+    var title: String {
+        switch self {
+        case .home: return String(localized: "Home")
+        case .library: return String(localized: "Library")
+        case .reading: return String(localized: "Reading")
+        case .toRead: return String(localized: "To Read")
+        case .completed: return String(localized: "Completed")
+        case .recentAdded: return String(localized: "Recently Added")
+        case .recentRead: return String(localized: "Recently Read")
+        case .favorites: return String(localized: "Favorites")
+        case .characters: return String(localized: "Characters")
+        case .series: return String(localized: "Series")
+        case .achievements: return String(localized: "Achievements")
+        case .lists: return String(localized: "Lists")
+        case .notes: return String(localized: "Notes")
+        case .myPanels: return String(localized: "My Panels")
+        case .smartSearch: return String(localized: "Smart Search")
+        case .readingOrder2: return String(localized: "Reading Order")
+        case .libraryHealth: return String(localized: "Library Health")
+        case .libraryTools: return String(localized: "Library Tools")
+        case .smartCollections: return String(localized: "Smart Collections")
+        case .sourcesSync: return String(localized: "Sources & Sync")
+        case .journal: return String(localized: "Reading Journal")
+        case .statistics: return String(localized: "Statistics")
+        case .wrapped: return String(localized: "ComicPort Wrapped")
+        case .history: return String(localized: "Reading History")
+        case .saved: return String(localized: "Saved")
+        case .settings: return String(localized: "Settings")
+        case .browse: return String(localized: "Browse")
+        }
+    }
+
+    static func restore(_ value: String) -> Self {
+        if let route = Self(rawValue: value) { return route }
+        let legacy: [String: Self] = [
+            "Ana Sayfa": .home,
+            "Kütüphanem": .library,
+            "Okunuyor": .reading,
+            "Okunacak": .toRead,
+            "Tamamlandı": .completed,
+            "Son Eklenenler": .recentAdded,
+            "Son Okunanlar": .recentRead,
+            "Favoriler": .favorites,
+            "Karakterler": .characters,
+            "Seriler": .series,
+            "Başarımlar": .achievements,
+            "Listelerim": .lists,
+            "Notlar": .notes,
+            "My Panels": .myPanels,
+            "Akıllı Arama": .smartSearch,
+            "Reading Order 2.0": .readingOrder2,
+            "Reading Order": .readingOrder2,
+            "Library Health": .libraryHealth,
+            "Library Tools": .libraryTools,
+            "Smart Collections": .smartCollections,
+            "Sources & Sync": .sourcesSync,
+            "Reading Journal": .journal,
+            "İstatistikler": .statistics,
+            "ComicPort Wrapped": .wrapped,
+            "Okuma Geçmişi": .history,
+            "Kaydedilenler": .saved,
+            "Ayarlar": .settings
+        ]
+        return legacy[value] ?? .home
+    }
 
     var id: String { rawValue }
 
     var icon: String {
         switch self {
+        case .browse: return "square.grid.2x2.fill"
         case .home: return "house.fill"
         case .library: return "books.vertical.fill"
         case .reading: return "book.pages.fill"
@@ -112,10 +181,13 @@ struct DashboardShellView: View {
                     }
                 }
 
+
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
                 if !ComicPortPlatform.isMac || !showSidebar {
                     DashboardBottomBar(selection: $selection)
                         .padding(.horizontal, showSidebar ? 250 : 18)
-                        .padding(.bottom, 8)
+                        .padding(.vertical, 8)
                 }
             }
             .fileImporter(
@@ -132,12 +204,21 @@ struct DashboardShellView: View {
                 get: { store.importError != nil },
                 set: { if !$0 { store.importError = nil } }
             )) {
-                Button("Tamam", role: .cancel) { store.importError = nil }
+                Button("OK", role: .cancel) { store.importError = nil }
             } message: {
                 Text(store.importError ?? "")
             }
         }
         .preferredColorScheme(.dark)
+        #if DEBUG
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ScreenshotSection"))) { note in
+            if let route = note.object as? String {
+                selection = DashboardSection.allCases.first { String(describing: $0) == route } ?? .home
+                showImporter = route == "import"
+            }
+        }
+        #endif
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("ComicPortImportRequested"))) { _ in showImporter = true }
         .tint(accentColor)
         .task(id: store.pendingQuickAction?.rawValue) {
             processQuickActionIfNeeded()
@@ -172,7 +253,8 @@ struct DashboardShellView: View {
                 HStack(spacing: 10) {
                     Image(systemName: "folder.badge.plus")
                     Text(notice).font(.callout.weight(.semibold))
-                    Button { store.clearSourceNotice() } label: { Image(systemName: "xmark") }
+                    Button { store.clearSourceNotice() } label: { Image(systemName: "xmark").frame(minWidth: 44, minHeight: 44) }
+                        .accessibilityLabel("Dismiss notification")
                         .buttonStyle(.plain)
                 }
                 .padding(.horizontal, 14)
@@ -182,11 +264,11 @@ struct DashboardShellView: View {
             }
         }
         .onAppear {
-            if let restored = DashboardSection.allCases.first(where: { $0.rawValue == persistedSection }) {
-                selection = restored
-            }
+            selection = DashboardSection.restore(persistedSection)
+            persistedSection = selection.rawValue
         }
         .onChange(of: selection) { _, newValue in
+            searchText = ""
             persistedSection = newValue.rawValue
         }
         .onChange(of: store.lastSessionSummary) { _, summary in
@@ -345,13 +427,13 @@ private struct DashboardSidebar: View {
                     HStack(spacing: 12) {
                         Image(systemName: item.icon)
                             .frame(width: 22)
-                        Text(item.rawValue)
+                        Text(item.title)
                             .font(.subheadline.weight(selection == item ? .semibold : .regular))
                         Spacer()
                     }
                     .foregroundStyle(selection == item ? .white : .secondary)
                     .padding(.horizontal, 12)
-                    .frame(height: 42)
+                    .frame(minHeight: 44)
                     .background(
                         selection == item ? accentColor.opacity(0.88) : Color.clear,
                         in: RoundedRectangle(cornerRadius: 10)
@@ -369,7 +451,7 @@ private struct DashboardSidebar: View {
             HStack(spacing: 12) {
                 Image(systemName: item.icon)
                     .frame(width: 22)
-                Text(item.rawValue)
+                Text(item.title)
                     .font(.subheadline.weight(selection == item ? .semibold : .regular))
                 Spacer()
             }
@@ -435,7 +517,7 @@ private struct DashboardTopBar: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
 
-                TextField("Çizgi roman ara…", text: $searchText)
+                TextField("Search comics…", text: $searchText)
                     .textFieldStyle(.plain)
                     .autocorrectionDisabled()
 
@@ -448,6 +530,7 @@ private struct DashboardTopBar: View {
                     }
                     .buttonStyle(.plain)
                     .help("Clear search")
+                    .accessibilityLabel("Clear search")
                 } else if ComicPortPlatform.isMac {
                     Text("⌘F")
                         .font(.caption2.monospaced())
@@ -455,7 +538,7 @@ private struct DashboardTopBar: View {
                 }
             }
             .padding(.horizontal, 14)
-            .frame(height: 42)
+            .frame(minHeight: 44)
             .background(
                 .white.opacity(0.05),
                 in: RoundedRectangle(cornerRadius: 10)
@@ -483,7 +566,7 @@ private struct DashboardTopBar: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "plus")
-                    Text("İçe Aktar")
+                    Text("Import")
                     if ComicPortPlatform.isMac {
                         Text("⌘O")
                             .font(.caption2.monospaced())
@@ -492,7 +575,7 @@ private struct DashboardTopBar: View {
                 }
                 .font(.subheadline.weight(.semibold))
                 .padding(.horizontal, 16)
-                .frame(height: 40)
+                .frame(minHeight: 44)
                 .background(
                     accentColor,
                     in: RoundedRectangle(cornerRadius: 9)
@@ -520,27 +603,29 @@ private struct DashboardContent: View {
         Group {
             if !searchText.isEmpty {
                 DashboardBookCollectionView(
-                    title: "Arama Sonuçları",
+                    title: "Search Results",
                     books: store.libraryBooks.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
                 )
             } else {
                 switch selection {
+                case .browse:
+                    DashboardBrowseView(selection: $selection)
                 case .home:
                     DashboardHomeView(selection: $selection)
                 case .library:
-                    DashboardBookCollectionView(title: "Kütüphanem", books: store.libraryBooks)
+                    DashboardBookCollectionView(title: "Library", books: store.libraryBooks)
                 case .reading:
-                    DashboardBookCollectionView(title: "Okunuyor", books: store.books(with: .reading))
+                    DashboardBookCollectionView(title: "Reading", books: store.books(with: .reading))
                 case .toRead:
-                    DashboardBookCollectionView(title: "Okunacak", books: store.books(with: .toRead))
+                    DashboardBookCollectionView(title: "To Read", books: store.books(with: .toRead))
                 case .completed:
-                    DashboardBookCollectionView(title: "Tamamlandı", books: store.books(with: .completed))
+                    DashboardBookCollectionView(title: "Completed", books: store.books(with: .completed))
                 case .recentAdded:
-                    DashboardBookCollectionView(title: "Son Eklenenler", books: store.recentlyAdded)
+                    DashboardBookCollectionView(title: "Recently Added", books: store.recentlyAdded)
                 case .recentRead:
-                    DashboardBookCollectionView(title: "Son Okunanlar", books: store.recentlyRead)
+                    DashboardBookCollectionView(title: "Recently Read", books: store.recentlyRead)
                 case .favorites:
-                    DashboardBookCollectionView(title: "Favoriler", books: store.libraryBooks.filter { $0.favorite })
+                    DashboardBookCollectionView(title: "Favorites", books: store.libraryBooks.filter { $0.favorite })
                 case .characters:
                     CharacterLibraryView()
                 case .series:
@@ -580,7 +665,16 @@ private struct DashboardContent: View {
                 }
             }
         }
-        .padding(.bottom, ComicPortPlatform.isMac ? 14 : 78)
+        .dashboardBottomClearance()
+    }
+}
+
+extension View {
+    /// Reserve the floating tab bar plus a 16-point breathing room for every destination.
+    func dashboardBottomClearance() -> some View {
+        safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: ComicPortPlatform.isMac ? 16 : 96)
+        }
     }
 }
 
@@ -596,7 +690,7 @@ private struct DashboardHomeView: View {
     @State private var activeReader: DashboardReaderRoute?
 
     private var continueBooks: [ComicBook] {
-        Array(store.books(with: .reading).prefix(4))
+        Array(store.libraryBooks.filter { $0.currentPage > 0 && $0.readingStatus != .completed }.prefix(4))
     }
 
     private var recentBooks: [ComicBook] {
@@ -609,13 +703,33 @@ private struct DashboardHomeView: View {
                 Color.black
                     .ignoresSafeArea()
             } else {
+                GeometryReader { geometry in
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 16) {
-                ReadingSummaryStrip()
+                if store.libraryBooks.isEmpty {
+                    ContentUnavailableView {
+                        Label("Your next story starts here", systemImage: "books.vertical")
+                    } description: {
+                        Text("Import a PDF, CBZ or CBR — free public-domain comics from the Internet Archive are a great place to start.")
+                    } actions: {
+                        Button("Import a Comic") { NotificationCenter.default.post(name: Notification.Name("ComicPortImportRequested"), object: nil) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.large)
+                    }
+                } else {
+                    if store.analytics.history.contains(where: { $0.pagesRead > 0 }) || store.libraryBooks.contains(where: { $0.currentPage > 0 || $0.readingStatus == .completed }) {
+                        ReadingSummaryStrip()
 
+                    }
+
+                if continueBooks.isEmpty {
+                    DashboardPanel(title: "RECENTLY ADDED", trailing: "See All") { selection = .recentAdded } content: {
+                        RecentlyAddedGrid(books: recentBooks) { activeReader = DashboardReaderRoute(id: $0.id) }
+                    }
+                } else {
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 16) {
-                        DashboardPanel(title: "DEVAM ETTİĞİN YERDEN", trailing: "Tümünü Gör") {
+                        DashboardPanel(title: "CONTINUE READING", trailing: "See All") {
                             selection = .reading
                         } content: {
                             ContinueReadingRow(books: continueBooks) { book in
@@ -624,7 +738,7 @@ private struct DashboardHomeView: View {
                         }
                         .frame(maxWidth: .infinity)
 
-                        DashboardPanel(title: "SON EKLENENLER", trailing: "Tümünü Gör") {
+                        DashboardPanel(title: "RECENTLY ADDED", trailing: "See All") {
                             selection = .recentAdded
                         } content: {
                             RecentlyAddedGrid(books: recentBooks) { book in
@@ -635,12 +749,12 @@ private struct DashboardHomeView: View {
                     }
 
                     VStack(spacing: 16) {
-                        DashboardPanel(title: "DEVAM ETTİĞİN YERDEN", trailing: "Tümünü Gör") { selection = .reading } content: {
+                        DashboardPanel(title: "CONTINUE READING", trailing: "See All") { selection = .reading } content: {
                             ContinueReadingRow(books: continueBooks) { book in
                                 activeReader = DashboardReaderRoute(id: book.id)
                             }
                         }
-                        DashboardPanel(title: "SON EKLENENLER", trailing: "Tümünü Gör") { selection = .recentAdded } content: {
+                        DashboardPanel(title: "RECENTLY ADDED", trailing: "See All") { selection = .recentAdded } content: {
                             RecentlyAddedGrid(books: recentBooks) { book in
                                 activeReader = DashboardReaderRoute(id: book.id)
                             }
@@ -648,6 +762,7 @@ private struct DashboardHomeView: View {
                     }
                 }
 
+                }
                 CompactComicFactBar()
                 CompactComicRecommendationBar()
 
@@ -666,8 +781,11 @@ private struct DashboardHomeView: View {
                         PublisherCategoriesCard()
                     }
                 }
+                }
             }
                     .padding(16)
+                    .frame(minHeight: store.libraryBooks.isEmpty ? geometry.size.height : 0)
+                }
                 }
             }
         }
@@ -698,20 +816,22 @@ private struct ReadingSummaryStrip: View {
     }
 
     var body: some View {
-        DashboardPanel(title: "OKUMA İSTATİSTİKLERİ") {
+        DashboardPanel(title: "READING STATISTICS") {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 10) {
-                    StatTile(icon: "books.vertical.fill", value: "\(store.libraryBooks.count)", label: "Toplam Çizgi Roman", footnote: "koleksiyonunda", tint: accentColor)
-                    StatTile(icon: "book.pages.fill", value: formatNumber(totalPagesRead), label: "Okuduğun Sayfa", footnote: "toplam", tint: .green)
-                    StatTile(icon: "clock.fill", value: shortDuration(totalSeconds), label: "Okuma Süresi", footnote: "toplam", tint: .purple)
-                    StatTile(icon: "calendar", value: shortDuration(weekSeconds), label: "Bu Hafta", footnote: "okuma süresi", tint: .orange)
+                    StatTile(icon: "books.vertical.fill", value: "\(store.libraryBooks.count)", label: "Comics", footnote: "in your library", tint: accentColor)
+                    StatTile(icon: "book.pages.fill", value: formatNumber(totalPagesRead), label: "Pages Read", footnote: "total", tint: .green)
+                    StatTile(icon: "clock.fill", value: shortDuration(totalSeconds), label: "Reading Time", footnote: "total", tint: .purple)
+                    StatTile(icon: "calendar", value: shortDuration(weekSeconds), label: "This Week", footnote: "reading time", tint: .orange)
                     OverallProgressTile(progress: overallProgress)
                 }
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 10)], spacing: 10) {
-                    StatTile(icon: "books.vertical.fill", value: "\(store.libraryBooks.count)", label: "Toplam Çizgi Roman", footnote: "koleksiyonunda", tint: accentColor)
-                    StatTile(icon: "book.pages.fill", value: formatNumber(totalPagesRead), label: "Okuduğun Sayfa", footnote: "toplam", tint: .green)
-                    StatTile(icon: "clock.fill", value: shortDuration(totalSeconds), label: "Okuma Süresi", footnote: "toplam", tint: .purple)
-                    StatTile(icon: "calendar", value: shortDuration(weekSeconds), label: "Bu Hafta", footnote: "okuma süresi", tint: .orange)
+                VStack(spacing: 10) {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+                    StatTile(icon: "books.vertical.fill", value: "\(store.libraryBooks.count)", label: "Comics", footnote: "in your library", tint: accentColor)
+                    StatTile(icon: "book.pages.fill", value: formatNumber(totalPagesRead), label: "Pages Read", footnote: "total", tint: .green)
+                    StatTile(icon: "clock.fill", value: shortDuration(totalSeconds), label: "Reading Time", footnote: "total", tint: .purple)
+                    StatTile(icon: "calendar", value: shortDuration(weekSeconds), label: "This Week", footnote: "reading time", tint: .orange)
+                }
                     OverallProgressTile(progress: overallProgress)
                 }
             }
@@ -738,7 +858,7 @@ private struct ReadingSummaryStrip: View {
 
             let total = books.reduce(0) { $0 + max(0, $1.pageCount) }
             let current = books.reduce(0) { partial, book in
-                partial + min(max(0, book.currentPage + 1), max(0, book.pageCount))
+                partial + Int((book.displayProgress * Double(max(0, book.pageCount))).rounded())
             }
             let progress = total == 0 ? 0 : min(1, Double(current) / Double(total))
             return (pages, seconds, week, progress)
@@ -767,7 +887,7 @@ private struct StatTile: View {
             .frame(width: 43, height: 43)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(label).font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                Text(LocalizedStringKey(label)).font(.caption).foregroundStyle(.secondary).lineLimit(2)
                 Text(value).font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.75)
                 Text(footnote).font(.caption2).foregroundStyle(.tertiary)
             }
@@ -787,15 +907,15 @@ private struct OverallProgressTile: View {
             ZStack {
                 Circle().stroke(.white.opacity(0.08), lineWidth: 8)
                 Circle().trim(from: 0, to: progress)
-                    .stroke(accentColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .stroke(progress == 0 ? Color.secondary : accentColor, style: StrokeStyle(lineWidth: 8, lineCap: .round))
                     .rotationEffect(.degrees(-90))
             }
             .frame(width: 56, height: 56)
 
             VStack(alignment: .leading, spacing: 1) {
-                Text("Genel İlerleme").font(.caption).foregroundStyle(.secondary)
-                Text("%\(Int((progress * 100).rounded()))").font(.title2.bold())
-                Text("koleksiyonunun").font(.caption2).foregroundStyle(.tertiary)
+                Text("Overall Progress").font(.caption).foregroundStyle(.secondary)
+                Text("\(Int((progress * 100).rounded()))%").font(.title2.bold())
+                Text("of your library").font(.caption2).foregroundStyle(.tertiary)
             }
         }
         .padding(12)
@@ -812,7 +932,7 @@ private struct ContinueReadingRow: View {
 
     var body: some View {
         if books.isEmpty {
-            EmptyDashboardMessage(icon: "book.pages", text: "Henüz devam ettiğin bir çizgi roman yok.")
+            EmptyDashboardMessage(icon: "book.pages", text: "Start a comic to continue reading here.")
                 .frame(height: 300)
         } else {
             ScrollView(.horizontal, showsIndicators: false) {
@@ -834,7 +954,7 @@ private struct RecentlyAddedGrid: View {
 
     var body: some View {
         if books.isEmpty {
-            EmptyDashboardMessage(icon: "plus.circle", text: "Yeni eklenen çizgi roman yok.")
+            EmptyDashboardMessage(icon: "plus.circle", text: "Your imported comics appear here.")
                 .frame(height: 300)
         } else {
             LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
@@ -920,18 +1040,19 @@ private struct DashboardComicCard: View {
                 .frame(width: width, height: width * 1.48)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
-            Text(book.title)
+            Text(book.displayTitle)
+                    .truncationMode(.tail)
                 .font(.subheadline.bold())
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .frame(width: width, alignment: .leading)
 
             if showProgress {
-                Text("%\(book.progressPercent) okundu")
+                Text("\(book.displayProgressPercent)% read")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                ProgressView(value: book.progress)
-                    .tint(accentColor)
+                ProgressView(value: book.displayProgress)
+                    .tint(book.displayProgress == 0 ? Color.secondary : accentColor)
                     .frame(width: width)
             }
         }
@@ -960,11 +1081,12 @@ private struct DashboardMiniComicCard: View {
                 DashboardCover(book: book)
                     .aspectRatio(0.67, contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
-                Text(book.title)
+                Text(book.displayTitle)
+                    .truncationMode(.tail)
                     .font(.caption.bold())
                     .foregroundStyle(.white)
                     .lineLimit(2)
-                Text("%\(book.progressPercent)")
+                Text("\(book.displayProgressPercent)%")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }
@@ -1004,7 +1126,7 @@ private struct ReadingGoalDashboardCard: View {
     @EnvironmentObject var store: LibraryStore
 
     var body: some View {
-        DashboardPanel(title: "OKUMA HEDEFİ") {
+        DashboardPanel(title: "READING GOAL") {
             HStack(spacing: 20) {
                 ZStack {
                     Circle().stroke(.white.opacity(0.08), lineWidth: 11)
@@ -1019,13 +1141,13 @@ private struct ReadingGoalDashboardCard: View {
                 .frame(width: 100, height: 100)
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Bugün")
+                    Text("Today")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                    Text("\(store.todayStat.pages) sayfa")
+                    Text("\(store.todayStat.pages) pages")
                         .font(.title3.bold())
                         .foregroundStyle(.green)
-                    Text("Hedef: \(store.analytics.dailyGoalPages) sayfa")
+                    Text("Goal: \(store.analytics.dailyGoalPages) pages")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     ProgressView(value: store.todayGoalProgress)
@@ -1072,8 +1194,8 @@ private struct ReadingCalendarCard: View {
 
     var body: some View {
         DashboardPanel(
-            title: "OKUMA & ÇİZGİ ROMAN TAKVİMİ",
-            trailing: "Tam Takvim",
+            title: "READING CALENDAR",
+            trailing: "Full Calendar",
             action: {
                 calendarOpenDate = .now
                 showFullCalendar = true
@@ -1083,7 +1205,7 @@ private struct ReadingCalendarCard: View {
                 Text(monthTitle.capitalized)
                     .font(.headline)
                 HStack {
-                    ForEach(["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"], id: \.self) { day in
+                    ForEach(["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"], id: \.self) { day in
                         Text(day).font(.caption2).foregroundStyle(.secondary).frame(maxWidth: .infinity)
                     }
                 }
@@ -1117,7 +1239,7 @@ private struct ReadingCalendarCard: View {
                         Circle()
                             .fill(next.1.kind.color)
                             .frame(width: 8, height: 8)
-                        Text("Yaklaşan: \(next.1.title)")
+                        Text("Upcoming: \(next.1.title)")
                             .font(.caption.bold())
                             .lineLimit(1)
                         Spacer()
@@ -1128,10 +1250,10 @@ private struct ReadingCalendarCard: View {
                 }
 
                 HStack(spacing: 10) {
-                    calendarLegend("Okuma", color: .green)
-                    calendarLegend("Özel Gün", color: .yellow)
+                    calendarLegend("Reading", color: .green)
+                    calendarLegend("Special Day", color: .yellow)
                     Spacer()
-                    Text("Takvime dokun: tüm ayları ve yılları aç")
+                    Text("Tap the calendar to browse months and years")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -1148,11 +1270,11 @@ private struct ReadingCalendarCard: View {
                         .environmentObject(store)
                         .padding(18)
                 }
-                .navigationTitle("Okuma & Çizgi Roman Takvimi")
+                .navigationTitle("Reading Calendar")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button("Kapat") {
+                        Button("Close") {
                             showFullCalendar = false
                         }
                     }
@@ -1165,7 +1287,7 @@ private struct ReadingCalendarCard: View {
     private func calendarLegend(_ title: String, color: Color) -> some View {
         HStack(spacing: 4) {
             Circle().fill(color).frame(width: 6, height: 6)
-            Text(title).font(.caption2).foregroundStyle(.secondary)
+            Text(LocalizedStringKey(title)).font(.caption2).foregroundStyle(.secondary)
         }
     }
 
@@ -1204,7 +1326,7 @@ private struct PublisherCategoriesCard: View {
     }
 
     var body: some View {
-        DashboardPanel(title: "KATEGORİLER", trailing: "Tümünü Gör") {} content: {
+        DashboardPanel(title: "CATEGORIES", trailing: "See All") {} content: {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 10)], spacing: 10) {
                 ForEach(Array(publishers.indices), id: \.self) { index in
                     let item = publishers[index]
@@ -1244,28 +1366,28 @@ private struct PublisherCategoriesCard: View {
                 else if low.contains("image") { publisher = "Image Comics" }
                 else if low.contains("dark horse") { publisher = "Dark Horse" }
                 else if low.contains("boom") { publisher = "BOOM! Studios" }
-                else { publisher = "Diğer" }
+                else { publisher = "Other" }
                 result[publisher, default: 0] += 1
             }
             return result
         }.value
         guard !Task.isCancelled else { return }
 
-        let order = ["DC Comics", "Marvel", "Image Comics", "Dark Horse", "BOOM! Studios", "Diğer"]
+        let order = ["DC Comics", "Marvel", "Image Comics", "Dark Horse", "BOOM! Studios", "Other"]
         publishers = order.map { name in
             (name: name, count: counts[name, default: 0], icon: publisherIcon(name))
         }
     }
 
     private func normalizedPublisher(_ raw: String?) -> String {
-        guard let raw else { return "Diğer" }
+        guard let raw else { return "Other" }
         let low = raw.lowercased()
         if low.contains("dc") { return "DC Comics" }
         if low.contains("marvel") { return "Marvel" }
         if low.contains("image") { return "Image Comics" }
         if low.contains("dark horse") { return "Dark Horse" }
         if low.contains("boom") { return "BOOM! Studios" }
-        return "Diğer"
+        return "Other"
     }
 
     private func publisherIcon(_ name: String) -> String {
@@ -1352,7 +1474,7 @@ private struct DashboardBookCollectionView: View {
     }
 
     private var supportsQuickTabs: Bool {
-        title == "Kütüphanem" || title == "Arama Sonuçları"
+        title == "Library" || title == "Search Results"
     }
 
     private var filteredBooks: [ComicBook] {
@@ -1386,7 +1508,7 @@ private struct DashboardBookCollectionView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(title)
                                     .font(.largeTitle.bold())
-                                Text("\(filteredBooks.count) çizgi roman")
+                                Text("\(filteredBooks.count) comics")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
@@ -1411,7 +1533,7 @@ private struct DashboardBookCollectionView: View {
                     if filteredBooks.isEmpty {
                         EmptyDashboardMessage(
                             icon: "books.vertical",
-                            text: "Bu bölümde henüz çizgi roman yok."
+                            text: "No comics here yet."
                         )
                         .padding(.top, ComicPortPlatform.isMac ? 60 : 100)
                     } else {
@@ -1450,14 +1572,14 @@ private struct DashboardStatisticsView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text("İstatistikler").font(.largeTitle.bold())
+                Text("Statistics").font(.largeTitle.bold())
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 14)], spacing: 14) {
-                    DetailStatCard(icon: "book.pages.fill", title: "Okunan Sayfa", value: formatNumber(totalPages), tint: .green)
-                    DetailStatCard(icon: "clock.fill", title: "Toplam Süre", value: shortDuration(totalSeconds), tint: .purple)
-                    DetailStatCard(icon: "rectangle.stack.fill", title: "Okuma Oturumu", value: "\(sessions)", tint: .blue)
-                    DetailStatCard(icon: "checkmark.circle.fill", title: "Tamamlanan", value: "\(store.books(with: .completed).count)", tint: .orange)
+                    DetailStatCard(icon: "book.pages.fill", title: "Pages Read", value: formatNumber(totalPages), tint: .green)
+                    DetailStatCard(icon: "clock.fill", title: "Total Time", value: shortDuration(totalSeconds), tint: .purple)
+                    DetailStatCard(icon: "rectangle.stack.fill", title: "Reading Sessions", value: "\(sessions)", tint: .blue)
+                    DetailStatCard(icon: "checkmark.circle.fill", title: "Completed", value: "\(store.books(with: .completed).count)", tint: .orange)
                     DetailStatCard(icon: "heart.fill", title: "Favori", value: "\(store.libraryBooks.filter { $0.favorite }.count)", tint: .pink)
-                    DetailStatCard(icon: "trophy.fill", title: "Başarımlar", value: "\(store.achievementProfile.unlockedIDs.count) / \(AchievementCatalog.all.count)", tint: .yellow)
+                    DetailStatCard(icon: "trophy.fill", title: "Achievements", value: "\(store.achievementProfile.unlockedIDs.count) / \(AchievementCatalog.all.count)", tint: .yellow)
                 }
                 ReadingCalendarCard()
             }
@@ -1500,13 +1622,13 @@ private struct DashboardHistoryView: View {
         NavigationStack {
             List {
                 if store.analytics.history.isEmpty {
-                    ContentUnavailableView("Henüz okuma geçmişi yok", systemImage: "clock.arrow.circlepath")
+                    ContentUnavailableView("No reading history yet", systemImage: "clock.arrow.circlepath")
                         .listRowBackground(Color.clear)
                 } else {
                     ForEach(store.analytics.history) { entry in
                         VStack(alignment: .leading, spacing: 5) {
                             Text(store.bookTitle(for: entry.bookID)).font(.headline)
-                            Text("Sayfa \(entry.startPage + 1) → \(entry.endPage + 1) • \(entry.pagesRead) sayfa")
+                            Text("Page \(entry.startPage + 1) → \(entry.endPage + 1) • \(entry.pagesRead) pages")
                                 .font(.subheadline).foregroundStyle(.secondary)
                             Text("\(entry.date.formatted(date: .abbreviated, time: .shortened)) • \(shortDuration(entry.seconds))")
                                 .font(.caption).foregroundStyle(.tertiary)
@@ -1517,7 +1639,7 @@ private struct DashboardHistoryView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Okuma Geçmişi")
+            .navigationTitle("Reading History")
         }
     }
 }
@@ -1529,7 +1651,7 @@ private struct DashboardSavedView: View {
         NavigationStack {
             ScrollView {
                 if store.savedDataBooks.isEmpty {
-                    EmptyDashboardMessage(icon: "archivebox", text: "Arşivlenmiş veya cihazdan kaldırılmış çizgi roman yok.")
+                    EmptyDashboardMessage(icon: "archivebox", text: "No archived or offloaded comics.")
                         .padding(.top, 100)
                 } else {
                     LazyVStack(spacing: 12) {
@@ -1540,10 +1662,10 @@ private struct DashboardSavedView: View {
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
                                     .opacity(book.fileAvailable ? 1 : 0.48)
                                 VStack(alignment: .leading, spacing: 5) {
-                                    Text(book.title).font(.headline)
-                                    Text(book.fileAvailable ? (book.isArchived ? "Arşivlendi" : "Kütüphane dışında") : "Cihazda değil")
+                                    Text(book.displayTitle).font(.headline)
+                                    Text(book.fileAvailable ? (book.isArchived ? "Archived" : "Outside Library") : "Not on this device")
                                         .font(.caption).foregroundStyle(.secondary)
-                                    Text("%\(book.progressPercent) • \(book.readingStatus.rawValue)")
+                                    Text("\(book.displayProgressPercent)% • \(book.readingStatus.rawValue)")
                                         .font(.caption2).foregroundStyle(.tertiary)
                                 }
                                 Spacer()
@@ -1555,7 +1677,7 @@ private struct DashboardSavedView: View {
                     .padding()
                 }
             }
-            .navigationTitle("Kaydedilenler")
+            .navigationTitle("Saved")
         }
     }
 }
@@ -1568,32 +1690,32 @@ private struct DashboardSettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Okuma") {
-                    Stepper("Günlük hedef: \(store.analytics.dailyGoalPages) sayfa", value: Binding(
+                Section("Reading") {
+                    Stepper("Daily goal: \(store.analytics.dailyGoalPages) pages", value: Binding(
                         get: { store.analytics.dailyGoalPages },
                         set: { store.setDailyGoal($0) }
                     ), in: 1...1000, step: 5)
 
-                    Toggle("Sonraki sayıyı otomatik aç", isOn: Binding(
+                    Toggle("Automatically open the next issue", isOn: Binding(
                         get: { store.autoOpenNextIssue },
                         set: { store.setAutoOpenNextIssue($0) }
                     ))
                     .tint(accentColor)
 
-                    Toggle("Guided Panel View'u varsayılan kullan", isOn: Binding(
+                    Toggle("Use Guided Panel View by default", isOn: Binding(
                         get: { store.guidedPanelModeEnabled },
                         set: { store.setGuidedPanelModeEnabled($0) }
                     ))
                     .tint(accentColor)
 
-                    Text("Bir seri algılandığında son sayfaya ulaştıktan sonra sonraki sayı otomatik açılabilir.")
+                    Text("When a series is detected, the next issue can open automatically after the last page.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Görünüm") {
+                Section("Appearance") {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 10)], spacing: 10) {
-                        ForEach(PanelAccentTheme.allCases) { option in
+                        ForEach(PanelAccentTheme.releaseChoices) { option in
                             Button {
                                 theme.accent = option
                             } label: {
@@ -1619,12 +1741,12 @@ private struct DashboardSettingsView: View {
                         }
                     }
 
-                    Text("Vurgu rengi menüler, butonlar ve ilerleme göstergelerinde kullanılır. Başarım nadirlik renkleri bağımsız kalır.")
+                    Text("Your accent color is used for menus, buttons and progress. Achievement rarity colors stay unchanged.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Veri & Güvenlik") {
+                Section("Data & Privacy") {
                     NavigationLink {
                         BackupRestoreView()
                             .environmentObject(store)
@@ -1633,30 +1755,16 @@ private struct DashboardSettingsView: View {
                         Label("Backup & Restore", systemImage: "externaldrive.badge.icloud")
                     }
 
-                    LabeledContent("Okuma oturumu", value: "\(store.analytics.history.count)")
-                    LabeledContent("Notlu sayfa", value: "\(store.annotationPageCount)")
-                    LabeledContent("My Panels", value: "\(store.savedPanels.count)")
-                    LabeledContent("Reading Journal", value: "\(store.readingJournalEntries.count)")
-                    if let occasion = ComicRecommendationOccasion.upcoming() {
-                        LabeledContent(
-                            "Öneri modu",
-                            value: occasion.daysAway == 0
-                                ? occasion.title
-                                : "\(occasion.title) • \(occasion.daysAway) gün"
-                        )
-                    } else {
-                        LabeledContent("Öneri modu", value: "Kişisel")
-                    }
+
                 }
 
-                Section("Depolama") {
-                    Label("Storage Optimizer", systemImage: "internaldrive")
-                    Text("Çizgi roman detayından PDF/arşiv için cihaz üzerinde depolama optimizasyonu yapabilirsin. Orijinal dosya yeni kopya doğrulanmadan değiştirilmez.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                Section {
+                    EmptyView()
+                } footer: {
+                    Text("Storage Optimizer: optimize PDF and archive storage from a comic’s detail page. The original is preserved until the new copy is verified.")
                 }
 
-                Section("Mac Health & Diagnostics") {
+                Section("Health & Diagnostics") {
                     NavigationLink {
                         ComicPortDiagnosticsView()
                             .environmentObject(store)
@@ -1672,16 +1780,16 @@ private struct DashboardSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
 
-                Section("Hakkında") {
+                Section("About") {
                     LabeledContent("Platform", value: ComicPortPlatform.displayName)
-                    LabeledContent("Codebase", value: ComicPortPlatform.sharedCodebaseMessage)
-                    LabeledContent("Sürüm", value: "2.2 · Stage 20.4.3 · Mac v1.0.3")
-                    LabeledContent("Başarım", value: "\(AchievementCatalog.all.count)")
-                    LabeledContent("Yerel katalog", value: "\(LocalComicDatabase.records.count) kayıt")
+                    LabeledContent("Price", value: String(localized: "Free forever"))
+                    LabeledContent("Version", value: ComicPortRelease.version)
+
                 }
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Ayarlar")
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
         }
     }
 }
@@ -1703,7 +1811,7 @@ private struct ComicPortDiagnosticsView: View {
                             .font(.largeTitle.bold())
 
                         Text(
-                            "Local checks for storage, library integrity and the Mac release environment."
+                            "Local checks for storage, library integrity and this device’s environment."
                         )
                         .foregroundStyle(.secondary)
                     }
@@ -2084,7 +2192,7 @@ private struct ComicPortDiagnosticsView: View {
         """
         ComicPort Support Report
         ========================
-        Version: 2.1 · Stage 19 · Mac v0.6 RC1
+        Version: \(ComicPortRelease.version)
         Platform: \(ComicPortPlatform.displayName)
         Checked: \(value.checkedAt.formatted())
 
@@ -2201,7 +2309,7 @@ private struct StorageSidebarCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Depolama").font(.subheadline.bold())
+                Text("Storage").font(.subheadline.bold())
                 Spacer()
                 Image(systemName: "gearshape")
                     .font(.caption)
@@ -2218,8 +2326,8 @@ private struct StorageSidebarCard: View {
                 .frame(width: 52, height: 52)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(byteString(libraryBytes)).font(.caption.bold())
-                    Text("çizgi romanlar").font(.caption2).foregroundStyle(.secondary)
-                    Text("\(byteString(availableCapacity)) boş").font(.caption2).foregroundStyle(.tertiary)
+                    Text("comics").font(.caption2).foregroundStyle(.secondary)
+                    Text("\(byteString(availableCapacity)) available").font(.caption2).foregroundStyle(.tertiary)
                 }
             }
         }
@@ -2881,7 +2989,7 @@ private struct ComicPortSourcesSyncView: View {
                             .font(.headline)
 
                         Text(
-                            "Choose a normal folder, iCloud Drive folder or another macOS-synced folder."
+                            "Choose a normal folder, iCloud Drive folder or another synced folder."
                         )
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -2912,7 +3020,7 @@ private struct ComicPortSourcesSyncView: View {
             .foregroundStyle(.green)
 
             Text(
-                "ComicPort does not connect to a ComicPort server. Source scanning happens on this Mac. Sync Folder uses a folder you explicitly choose; if that folder is backed by iCloud Drive or another provider, macOS/provider software handles the network transfer."
+                "ComicPort does not connect to a ComicPort server. Source scanning happens on this \(ComicPortPlatform.isMac ? "Mac" : "iPad"). Sync Folder uses a folder you explicitly choose; if that folder is backed by iCloud Drive or another provider, your cloud provider’s app handles the network transfer."
             )
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -2962,7 +3070,8 @@ private struct ComicQuickPreviewView: View {
                         .frame(width: 230, height: 350)
 
                         VStack(alignment: .leading, spacing: 12) {
-                            Text(book.title)
+                            Text(book.displayTitle)
+                    .truncationMode(.tail)
                                 .font(.largeTitle.bold())
 
                             Label(
@@ -2971,11 +3080,11 @@ private struct ComicQuickPreviewView: View {
                             )
 
                             Label(
-                                "\(book.progressPercent)% read",
+                                "\(book.displayProgressPercent)% read",
                                 systemImage: "chart.line.uptrend.xyaxis"
                             )
 
-                            ProgressView(value: book.progress)
+                            ProgressView(value: book.displayProgress)
 
                             if let info = store.loadOfflineInfo(
                                 bookID: book.id
@@ -3089,7 +3198,7 @@ private struct ComicPortLibraryToolsView: View {
                                 VStack(alignment: .leading, spacing: 6) {
                                     Text("\(group.bookIDs.count) identical files").font(.headline)
                                     ForEach(Array(group.titles.enumerated()), id: \.offset) { _, title in
-                                        Text(title).font(.caption).foregroundStyle(.secondary)
+                                        Text(LocalizedStringKey(title)).font(.caption).foregroundStyle(.secondary)
                                     }
                                 }
                                 .padding(12)
@@ -3198,7 +3307,7 @@ private struct ComicPortCommandPalette: View {
                 Spacer()
             }
             .padding(.horizontal, 12)
-            .frame(height: 42)
+            .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -3211,12 +3320,14 @@ private struct DashboardBottomBar: View {
     @Environment(\.panelAccentColor) private var accentColor
     @Binding var selection: DashboardSection
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private let tabs: [(DashboardSection, String, String)] = [
-        (.home, "Ana Sayfa", "house.fill"),
-        (.library, "Kütüphane", "books.vertical.fill"),
-        (.characters, "Karakterler", "person.3.fill"),
-        (.achievements, "Başarımlar", "trophy.fill"),
-        (.settings, "Ayarlar", "gearshape.fill")
+        (.home, "Home", "house.fill"),
+        (.library, "Library", "books.vertical.fill"),
+        (.characters, "Characters", "person.3.fill"),
+        (.browse, "Browse", "square.grid.2x2.fill"),
+        (.settings, "Settings", "gearshape.fill")
     ]
 
     var body: some View {
@@ -3224,7 +3335,7 @@ private struct DashboardBottomBar: View {
             ForEach(Array(tabs.indices), id: \.self) { index in
                 let tab = tabs[index]
                 Button {
-                    withAnimation(.easeInOut(duration: 0.18)) { selection = tab.0 }
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.18)) { selection = tab.0 }
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: tab.2).font(.system(size: 18, weight: .semibold))
@@ -3255,10 +3366,61 @@ func shortDuration(_ seconds: TimeInterval) -> String {
     let totalMinutes = Int(seconds) / 60
     let hours = totalMinutes / 60
     let minutes = totalMinutes % 60
-    if hours > 0 { return "\(hours)sa \(minutes)dk" }
-    return "\(minutes)dk"
+    if hours > 0 { return "\(hours)h \(minutes)m" }
+    return "\(minutes)m"
 }
 
 private func byteString(_ bytes: Int64) -> String {
     ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
 }
+
+#if DEBUG
+/// CI-only routing: uses production views and real asynchronous import, never mock books.
+struct ScreenshotRootView: View {
+    @EnvironmentObject var store: LibraryStore
+    let route: String
+    @State private var ready = false
+    @State private var section = DashboardSection.home
+    @State private var importing = false
+    private var book: ComicBook? {
+        store.books.first { route.hasPrefix("pdf") ? $0.type == .pdf : $0.type != .pdf }
+    }
+    var body: some View {
+        Group {
+            if !ready { ProgressView("Preparing screenshot…") }
+            else if route == "detail", let book { NavigationStack { BookDetailView(bookID: book.id) } }
+            else if route == "preview", let book { ComicQuickPreviewView(bookID: book.id) }
+            else if ["cbz", "cbz-hidden", "pdf", "guided", "reader-settings"].contains(route), let book {
+                ReaderView(bookID: book.id)
+            } else { DashboardShellView().onAppear {
+                NotificationCenter.default.post(name: Notification.Name("ScreenshotSection"), object: route)
+            } }
+        }
+        .preferredColorScheme(.dark)
+        .task {
+            let landscape = ProcessInfo.processInfo.environment["SCREENSHOT_ORIENTATION"] == "landscape"
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                UIDevice.current.setValue(landscape ? UIInterfaceOrientation.landscapeLeft.rawValue : UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
+                scene.requestGeometryUpdate(.iOS(interfaceOrientations: landscape ? .landscapeLeft : .portrait))
+            }
+            if route != "empty" && store.books.isEmpty {
+                let folder = store.documentsURL.appendingPathComponent("ScreenshotSamples")
+                for url in (try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? [] { store.importFile(url) }
+                while store.importInProgressCount > 0 { try? await Task.sleep(for: .milliseconds(250)) }
+            }
+            store.setGuidedPanelModeEnabled(route == "guided")
+            if let book {
+                store.updateReaderSettings(bookID: book.id) { settings in
+                    settings.pageLayout = .single
+                    settings.fitMode = .fitWidth
+                    settings.autoHideControls = false
+                }
+            }
+            ready = true
+            try? await Task.sleep(for: .seconds(8))
+            let status = "route=\(route) books=\(store.books.count) error=\(store.importError ?? "none")"
+            try? status.write(to: store.documentsURL.appendingPathComponent("screenshot-ready.txt"), atomically: true, encoding: .utf8)
+        }
+    }
+}
+#endif

@@ -282,7 +282,7 @@ enum SmartSearchDiskService {
                         bookID: book.id,
                         bookTitle: book.title,
                         page: nil,
-                        snippet: "Başlık eşleşmesi",
+                        snippet: "Title match",
                         kind: .title
                     )
                 )

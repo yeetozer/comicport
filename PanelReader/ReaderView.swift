@@ -231,6 +231,12 @@ struct ReaderView: View {
                         .environmentObject(store)
                 }
                 .onAppear {
+                    #if DEBUG
+                    if let route = ProcessInfo.processInfo.environment["SCREENSHOT_ROUTE"] {
+                        controlsVisible = route != "cbz-hidden"
+                        showReaderSettings = route == "reader-settings"
+                    }
+                    #endif
                     let settings = store.readerSettings(for: book.id)
                     scheduleControlsAutoHide(for: book.id)
                     if book.currentPage < settings.skipInitialPages {

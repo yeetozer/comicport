@@ -205,18 +205,18 @@ enum ComicRecommendationEngine {
             let reason: String
             if let occasion, occasion.broadTheme || occasionRelevance > 0 {
                 reason = occasion.daysAway == 0
-                    ? "\(occasion.title) bugün olduğu için bunu öneriyorum"
-                    : "\(occasion.title) yaklaştığından bunu öneriyorum • \(occasion.daysAway) gün kaldı"
+                    ? "Recommended for \(occasion.title) today"
+                    : "Recommended for \(occasion.title) • in \(occasion.daysAway) days"
             } else if let bestCharacter, bestCharacter.1 > 0 {
-                reason = "\(bestCharacter.0) ilgine göre"
+                reason = "Based on your interest in \(bestCharacter.0)"
             } else if let bestTag, bestTag.1 > 0 {
-                reason = "\(bestTag.0) tarzını sevdiğin için"
+                reason = "Because you enjoy \(bestTag.0)"
             } else if let bestCreator, bestCreator.1 > 0 {
-                reason = "\(bestCreator.0) ilgine göre"
+                reason = "Based on your interest in \(bestCreator.0)"
             } else if publisherScore > 0 {
-                reason = "\(displayPublisher(record.publisher)) okumalarına göre"
+                reason = "Based on your \(displayPublisher(record.publisher)) reading"
             } else {
-                reason = "ComicPort'un offline seçkilerinden"
+                reason = "From ComicPort’s offline picks"
             }
 
             recommendations.append(
@@ -238,7 +238,7 @@ enum ComicRecommendationEngine {
             recommendations
                 .sorted {
                     if abs($0.score - $1.score) > 0.01 { return $0.score > $1.score }
-                    return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                    return ComicDisplayTitle.clean($0.title).localizedStandardCompare(ComicDisplayTitle.clean($1.title)) == .orderedAscending
                 }
                 .prefix(limit)
         )
