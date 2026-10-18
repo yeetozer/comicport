@@ -2,7 +2,7 @@ name: iPad UI screenshots
 on:
   workflow_dispatch:
   push:
-    branches: [qa/screenshots]
+    branches: [qa/screenshots, 'polish/**']
 permissions:
   contents: read
 jobs:
