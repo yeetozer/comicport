@@ -67,7 +67,6 @@ final class LibraryStore: ObservableObject {
 
     private let metadataWriter = VersionedMetadataWriter()
     private var metadataGeneration: UInt64 = 0
-    private var persistenceFailure: Error?
     private var pendingLibrarySave: Task<Void, Never>?
     private var pendingSyncExport: Task<Void, Never>?
     private var pendingExternalImportURLs: [URL] = []
@@ -950,6 +949,10 @@ final class LibraryStore: ObservableObject {
     func deletePanel(_ panel: SavedPanel) {
         try? fm.removeItem(at: panelURL(for: panel))
         savedPanels.removeAll { $0.id == panel.id }
+        for index in readingJournalEntries.indices where readingJournalEntries[index].favoritePanelID == panel.id {
+            readingJournalEntries[index].favoritePanelID = nil
+        }
+        saveReadingJournal()
         saveSavedPanels()
     }
 
@@ -1191,6 +1194,12 @@ final class LibraryStore: ObservableObject {
         pencilAnnotationPageKeys = Set(pencilAnnotationPageKeys.filter { !$0.hasPrefix(book.id.uuidString + "-") })
         saveTextNotes()
         let panelsForBook = savedPanels.filter { $0.bookID == book.id }
+        let deletedPanelIDs = Set(panelsForBook.map(\.id))
+        for index in readingJournalEntries.indices {
+            if let id = readingJournalEntries[index].favoritePanelID, deletedPanelIDs.contains(id) {
+                readingJournalEntries[index].favoritePanelID = nil
+            }
+        }
         for panel in panelsForBook { try? fm.removeItem(at: panelURL(for: panel)) }
         savedPanels.removeAll { $0.bookID == book.id }
         saveSavedPanels()
@@ -1202,6 +1211,8 @@ final class LibraryStore: ObservableObject {
         deleteGuidedPanelCache(for: book.id)
         try? fm.removeItem(at: offlineInfoURL(bookID: book.id))
         books.removeAll { $0.id == book.id }
+        for index in storyArcs.indices { storyArcs[index].bookIDs.removeAll { $0 == book.id } }
+        saveStoryArcs()
         readerSettingsByBook.removeValue(forKey: book.id.uuidString)
         saveReaderSettings()
         analytics.history.removeAll { $0.bookID == book.id }
@@ -1298,16 +1309,8 @@ final class LibraryStore: ObservableObject {
     }
 
     private func save() {
-        do {
-            let data = try JSONEncoder().encode(books)
-            metadataGeneration += 1
-            try metadataWriter.write(data, to: metadataURL, generation: metadataGeneration)
-            persistenceFailure = nil
-            scheduleComicPortSyncExport()
-        } catch {
-            persistenceFailure = error
-            importError = "Could not save library: \(error.localizedDescription)"
-        }
+        persistInBackground(books, to: metadataURL, errorPrefix: "Could not save library")
+        scheduleComicPortSyncExport()
     }
 
     private func persistInBackground<T: Encodable & Sendable>(
@@ -1315,12 +1318,20 @@ final class LibraryStore: ObservableObject {
         to url: URL,
         errorPrefix: String
     ) {
-        do {
-            try JSONEncoder().encode(snapshot).write(to: url, options: .atomic)
-        } catch {
-            persistenceFailure = error
-            importError = "\(errorPrefix): \(error.localizedDescription)"
-        }
+        metadataGeneration += 1
+        metadataWriter.enqueue(snapshot, to: url, generation: metadataGeneration)
+    }
+
+    /// Submissions happen synchronously on main; encoding and disk IO never do.
+    func flush() async throws {
+        flushPendingLibrarySave()
+        try await metadataWriter.flush()
+    }
+
+    // UIKit cannot await termination. Drain the same serial executor as a last resort.
+    func flushForTermination() {
+        flushPendingLibrarySave()
+        metadataWriter.drain()
     }
 
     private func saveAnalytics() {
@@ -2358,8 +2369,7 @@ extension LibraryStore {
 
 extension LibraryStore {
     func makeBackupData(accentTheme: PanelAccentTheme) async throws -> Data {
-        flushPendingLibrarySave()
-        if let failure = persistenceFailure { throw failure }
+        try await flush()
 
         let noteDirectory = notesURL
         let panelDirectory = panelsURL
@@ -2387,7 +2397,7 @@ extension LibraryStore {
             var panelImages: [BackupPanelImage] = []
             for panel in panelMetadata {
                 let url = try BackupSafety.assetURL(panel.imageFileName, in: panelDirectory)
-                do {
+                if fm.fileExists(atPath: url.path) {
                     let data = try Data(contentsOf: url)
                     panelImages.append(BackupPanelImage(panelID: panel.id, data: data))
                 }
@@ -2433,10 +2443,10 @@ extension LibraryStore {
         return try encoder.encode(payload)
     }
 
-    func restoreBackupData(_ data: Data) throws -> PanelBackupRestoreResult {
+    func restoreBackupData(_ data: Data) async throws -> PanelBackupRestoreResult {
 
         let decoder = JSONDecoder()
-        let payload = try decoder.decode(PanelBackupPayload.self, from: data)
+        var payload = try decoder.decode(PanelBackupPayload.self, from: data)
         guard payload.schemaVersion <= PanelBackupPayload.currentSchemaVersion else {
             throw NSError(
                 domain: "PanelReader.Backup",
@@ -2446,10 +2456,11 @@ extension LibraryStore {
         }
 
         try BackupSafety.validate(payload)
+        let skippedItems = BackupSafety.prune(&payload)
         for directory in [booksURL, coversURL, notesURL, panelsURL, infoCacheURL] {
             try fm.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        flushPendingLibrarySave()
+        try await flush()
         for book in books + payload.books {
             _ = try BackupSafety.assetURL(book.storedFileName, in: booksURL)
             if let name = book.thumbnailFileName { _ = try BackupSafety.assetURL(name, in: coversURL) }
@@ -2457,7 +2468,6 @@ extension LibraryStore {
         for panel in payload.savedPanels {
             _ = try BackupSafety.assetURL(panel.imageFileName, in: panelsURL)
         }
-        if let failure = persistenceFailure { throw failure }
 
         var idMap: [UUID: UUID] = [:]
         var mergedBooks = books
@@ -2694,7 +2704,6 @@ extension LibraryStore {
         rebuildPencilAnnotationIndex()
         annotationRevision &+= 1
 
-        persistenceFailure = nil
         save()
         saveAnalytics()
         saveAchievements()
@@ -2706,10 +2715,12 @@ extension LibraryStore {
         saveReadingJournal()
         evaluateAchievements()
 
-        if let failure = persistenceFailure {
+        do { try await flush() } catch {
+            let failure = error
             throw BackupSafety.error("Restore was applied in memory, but saving failed; restore is incomplete: \(failure.localizedDescription)")
         }
         return PanelBackupRestoreResult(
+            skippedItems: skippedItems,
             accentTheme: PanelAccentTheme(rawValue: payload.accentThemeRawValue),
             importedBooks: payload.books.count,
             historyEntries: payload.analytics.history.count,
@@ -3397,18 +3408,48 @@ private struct ComicPortSyncSnapshot: Codable, Hashable, Sendable {
 }
 
 
-// A single synchronous serial writer is intentional: flush returns only after disk completion.
-// Generations also protect against delayed callers submitting an older snapshot.
+// All mutable state is confined to queue. Enqueue is synchronous, work is not:
+// a flush barrier cannot race an unstarted Task submitting an older snapshot.
 final class VersionedMetadataWriter: @unchecked Sendable {
-    private let queue = DispatchQueue(label: "ComicPort.metadata")
-    private var latest: UInt64 = 0
-    func write(_ data: Data, to url: URL, generation: UInt64) throws {
-        try queue.sync {
-            guard generation > latest else { return }
-            latest = generation
-            try data.write(to: url, options: .atomic)
+    private let queue = DispatchQueue(label: "ComicPort.metadata", qos: .utility)
+    private var latest: [URL: UInt64] = [:]
+    private var failures: [URL: Error] = [:]
+
+    var firstFailure: Error? { queue.sync { failures.values.first } }
+
+    private func commit(_ data: Data, to url: URL, generation: UInt64) throws {
+        guard generation > (latest[url] ?? 0) else { return }
+        try data.write(to: url, options: .atomic)
+        latest[url] = generation // Failed writes must remain retryable.
+        failures.removeValue(forKey: url)
+    }
+
+    func enqueue<T: Encodable & Sendable>(_ value: T, to url: URL, generation: UInt64) {
+        queue.async {
+            guard generation > (self.latest[url] ?? 0) else { return }
+            do { try self.commit(JSONEncoder().encode(value), to: url, generation: generation) }
+            catch { self.failures[url] = error }
         }
     }
+
+    // Kept for raw-data clients and deterministic generation tests.
+    func write(_ data: Data, to url: URL, generation: UInt64) throws {
+        try queue.sync {
+            do { try commit(data, to: url, generation: generation) }
+            catch { failures[url] = error; throw error }
+        }
+    }
+
+    func flush() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            queue.async {
+                if let error = self.failures.values.first { continuation.resume(throwing: error) }
+                else { continuation.resume() }
+            }
+        }
+    }
+
+    func drain() { queue.sync {} }
 }
 
 enum BackupSafety {
@@ -3430,6 +3471,42 @@ enum BackupSafety {
         return target
     }
 
+    /// Missing optional assets and dangling links are recoverable, never silently ignored.
+    static func prune(_ payload: inout PanelBackupPayload) -> [String] {
+        var skipped: [String] = []
+        let books = Set(payload.books.map(\.id))
+        func keep(_ valid: Bool, _ description: String) -> Bool {
+            if !valid { skipped.append(description) }
+            return valid
+        }
+        payload.savedPanels = payload.savedPanels.filter { keep(books.contains($0.bookID), "Panel \($0.id): missing book") }
+        let panels = Set(payload.savedPanels.map(\.id))
+        let images = Set(payload.panelImages.map(\.panelID))
+        for panel in payload.savedPanels where !images.contains(panel.id) {
+            skipped.append("Panel \(panel.id): missing image (metadata retained)")
+        }
+        payload.panelImages = payload.panelImages.filter { keep(panels.contains($0.panelID), "Unreferenced panel image \($0.panelID)") }
+        payload.textNotes = payload.textNotes.filter { keep(books.contains($0.bookID), "Note \($0.id): missing book") }
+        payload.pencilDrawings = payload.pencilDrawings.filter { keep(books.contains($0.bookID), "Drawing: missing book \($0.bookID)") }
+        payload.bookInfoFiles = payload.bookInfoFiles.filter { keep(books.contains($0.bookID), "Book info: missing book \($0.bookID)") }
+        for i in payload.storyArcs.indices {
+            payload.storyArcs[i].bookIDs = payload.storyArcs[i].bookIDs.filter { keep(books.contains($0), "Story arc: missing book \($0)") }
+        }
+        payload.readerSettingsByBook = payload.readerSettingsByBook.filter { keep(UUID(uuidString: $0.key).map { books.contains($0) } ?? false, "Reader settings: missing book \($0.key)") }
+        payload.analytics.history = payload.analytics.history.filter { keep(books.contains($0.bookID), "History \($0.id): missing book") }
+        if var journal = payload.readingJournal {
+            journal = journal.filter { keep(books.contains($0.bookID), "Journal \($0.id): missing book") }
+            for i in journal.indices {
+                if let id = journal[i].favoritePanelID, !panels.contains(id) {
+                    journal[i].favoritePanelID = nil
+                    skipped.append("Journal favorite: missing panel \(id)")
+                }
+            }
+            payload.readingJournal = journal
+        }
+        return skipped
+    }
+
     static func validate(_ payload: PanelBackupPayload) throws {
         func require(_ value: Bool, _ message: String) throws {
             if !value { throw error("Invalid backup: \(message)") }
@@ -3439,6 +3516,10 @@ enum BackupSafety {
         }
         try require((1...PanelBackupPayload.currentSchemaVersion).contains(payload.schemaVersion), "unsupported schema.")
         try unique(payload.books.map(\.id), "book IDs")
+        try unique(payload.storyArcs.map(\.id), "story arc IDs")
+        try unique((payload.readingJournal ?? []).map(\.id), "journal IDs")
+        try unique((payload.smartCollections ?? []).map(\.id), "collection IDs")
+        try unique(payload.textNotes.map(\.id), "note IDs")
         try unique(payload.savedPanels.map(\.id), "panel IDs")
         try unique(payload.panelImages.map(\.panelID), "panel image IDs")
         try unique(payload.analytics.history.map(\.id), "history IDs")
@@ -3446,7 +3527,8 @@ enum BackupSafety {
         let books = Dictionary(uniqueKeysWithValues: payload.books.map { ($0.id, $0) })
         let root = URL(fileURLWithPath: "/backup-validation", isDirectory: true)
         func page(_ id: UUID, _ page: Int) throws {
-            guard let book = books[id], page >= 0, page < book.pageCount else {
+            guard books[id] != nil else { return }
+            guard page >= 0, page < books[id]!.pageCount else {
                 throw error("Invalid backup: unknown book or out-of-range page.")
             }
         }
@@ -3461,17 +3543,8 @@ enum BackupSafety {
             _ = try assetURL(panel.imageFileName, in: root)
         }
         try unique(payload.savedPanels.map(\.imageFileName), "panel filenames")
-        let panelIDs = Set(payload.savedPanels.map(\.id))
-        try require(Set(payload.panelImages.map(\.panelID)) == panelIDs, "missing or unreferenced panel images.")
         for note in payload.textNotes { try page(note.bookID, note.page) }
         for drawing in payload.pencilDrawings { try page(drawing.bookID, drawing.page) }
-        for info in payload.bookInfoFiles { try require(books[info.bookID] != nil, "unknown book info reference.") }
-        for arc in payload.storyArcs {
-            try require(arc.bookIDs.allSatisfy { books[$0] != nil }, "unknown story arc book.")
-        }
-        for key in payload.readerSettingsByBook.keys {
-            try require(UUID(uuidString: key).flatMap { books[$0] } != nil, "unknown reader settings book.")
-        }
         for entry in payload.analytics.history {
             try page(entry.bookID, entry.startPage)
             try page(entry.bookID, entry.endPage)
@@ -3479,8 +3552,7 @@ enum BackupSafety {
         }
         try require(payload.analytics.dailyGoalPages > 0, "invalid reading goal.")
         for entry in payload.readingJournal ?? [] {
-            try require(books[entry.bookID] != nil && (0...5).contains(entry.rating), "invalid journal reference or rating.")
-            if let id = entry.favoritePanelID { try require(panelIDs.contains(id), "unknown favorite panel.") }
+            try require((0...5).contains(entry.rating), "invalid journal reference or rating.")
         }
     }
 }

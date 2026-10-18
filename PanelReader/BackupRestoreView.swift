@@ -317,14 +317,14 @@ struct BackupRestoreView: View {
                     try Data(contentsOf: URL(fileURLWithPath: path))
                 }.value
 
-                let result = try store.restoreBackupData(data)
+                let result = try await store.restoreBackupData(data)
                 if let restoredTheme = result.accentTheme {
                     theme.accent = restoredTheme.releaseSelection
                 }
 
                 isWorking = false
                 setStatus(
-                    "Restore complete: \(result.importedBooks) comic records, \(result.historyEntries) sessions, \(result.notes) annotated pages and \(result.panels) saved panels processed.",
+                    "\(result.skippedItems.isEmpty ? "Restore complete" : "Restored with \(result.skippedItems.count) items skipped"): \(result.importedBooks) comic records, \(result.historyEntries) sessions, \(result.notes) annotated pages and \(result.panels) saved panels processed.",
                     error: false
                 )
             } catch {
