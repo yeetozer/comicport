@@ -165,7 +165,7 @@ struct BookDetailView: View {
     }
 
     private func metadataControls(_ book: ComicBook) -> some View {
-        HStack(spacing: 16) {
+        LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], alignment: .leading, spacing: 8) {
             Button { store.toggleFavorite(id: book.id) } label: { Label(book.favorite ? "Favorite" : "Add Favorite", systemImage: book.favorite ? "heart.fill" : "heart") }
             Menu { ForEach(ReadingStatus.allCases) { status in Button(status.rawValue) { store.setStatus(id: book.id, status: status) } } } label: { Label(book.readingStatus.rawValue, systemImage: book.readingStatus.systemImage) }
             Menu { Button("No rating") { store.setRating(id: book.id, rating: 0) }; ForEach(1...5, id: \.self) { n in Button(String(repeating: "★", count: n)) { store.setRating(id: book.id, rating: n) } } } label: { Label(book.rating == 0 ? "Rate" : "\(book.rating)/5", systemImage: "star.fill") }
