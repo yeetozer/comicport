@@ -40,8 +40,12 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild -project PanelReader.xcodeproj -scheme 'ComicPort Mac' -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO SWIFT_ACTIVE_COMPILATION_CONDITIONS=DEBUG build 2>&1 | tee simulator-build.log
-      - name: Capture production screens
-        run: python3 .github/screenshot-capture.py
+      - name: Add CI-only orientation-driving UI test target
+        run: |
+          gem install xcodeproj --user-install --no-document
+          ruby .github/screenshot-test-project.rb
+      - name: Capture production screens with physical device rotation
+        run: python3 .github/screenshot-uitest.py
       - name: Upload screenshots and diagnostics
         if: always()
         uses: actions/upload-artifact@v4
