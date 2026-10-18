@@ -705,6 +705,7 @@ private struct DashboardHomeView: View {
                 Color.black
                     .ignoresSafeArea()
             } else {
+                GeometryReader { geometry in
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 16) {
                 if store.libraryBooks.isEmpty {
@@ -785,6 +786,8 @@ private struct DashboardHomeView: View {
                 }
             }
                     .padding(16)
+                    .frame(minHeight: store.libraryBooks.isEmpty ? geometry.size.height : 0)
+                }
                 }
             }
         }

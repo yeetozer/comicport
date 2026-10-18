@@ -1,7 +1,7 @@
 name: Data safety tests
 on:
   push:
-    branches: ["fix/**"]
+    branches: ["fix/**", "polish/**"]
   workflow_dispatch:
 permissions:
   contents: read
