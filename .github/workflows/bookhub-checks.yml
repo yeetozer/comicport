@@ -1,0 +1,16 @@
+name: Optional Book Hub checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        script: [run-bookhub-checks.py, run-bookhub-workspace.py, run-bundled-classics.py, run-bookhub-performance.py]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run production model checks
+        run: python3 Tests/${{ matrix.script }}
