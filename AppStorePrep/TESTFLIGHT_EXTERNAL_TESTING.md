@@ -39,7 +39,7 @@ Bring files you own or have permission to use. ComicPort does not supply or down
 Draft: 24 characters. Required contact/reply-to address for testers.[1][2]
 
 ```text
-yigit@yigitsolutions.com
+[set release contact in App Store Connect]
 ```
 
 ### Marketing URL — optional; numeric character limit not published
@@ -95,7 +95,7 @@ Draft: 22 characters.
 Draft: 24 characters.
 
 ```text
-yigit@yigitsolutions.com
+[set release contact in App Store Connect]
 ```
 
 ### Sign-in required — checkbox; no character limit
@@ -143,7 +143,7 @@ Please use disposable test files you own or have permission to use. Keep your or
 6. iPad only: add a ComicPort Home Screen widget. Try Continue Reading and Daily Goal; check that tapping opens the expected app destination, including after closing the app. There is no Mac widget in this build.
 7. Mac only: in Sources & Sync, add a local test folder. Scan/import a comic, quit ComicPort fully, add another comic to that folder in Finder, relaunch and scan again. Does the folder remain listed and accessible without choosing it again? Report permission errors or missed files. Also try Command-O and Finder drag-and-drop import.
 
-Feedback: on iPad, take a screenshot in ComicPort, tap its thumbnail, then Done > Share Beta Feedback (labels may vary by OS); or TestFlight > ComicPort > Send Beta Feedback. On Mac, use TestFlight > ComicPort > Send Beta Feedback, attach a screenshot, or email yigit@yigitsolutions.com. Include device/model, OS, build 2, file format/page, steps, expected result and actual result. Remove private pages or information from screenshots before sending.
+Feedback: on iPad, take a screenshot in ComicPort, tap its thumbnail, then Done > Share Beta Feedback (labels may vary by OS); or TestFlight > ComicPort > Send Beta Feedback. On Mac, use TestFlight > ComicPort > Send Beta Feedback, attach a screenshot, or email [set release contact in App Store Connect]. Include device/model, OS, build 2, file format/page, steps, expected result and actual result. Remove private pages or information from screenshots before sending.
 ```
 
 ## 5. Export compliance — App Uses Non-Exempt Encryption / encryption questions
