@@ -6,6 +6,10 @@ import UIKit
 
 enum DashboardSection: String, CaseIterable, Identifiable, Hashable {
     case home = "Ana Sayfa"
+    case bookGoals = "Okuma Hedefleri"
+    case bookQuotes = "Alıntı Defteri"
+    case bookShelves = "Kitap Raflarım"
+    case bookMaintenance = "Kitap Bakımı"
     case library = "Kütüphanem"
     case reading = "Okunuyor"
     case toRead = "Okunacak"
@@ -36,6 +40,10 @@ enum DashboardSection: String, CaseIterable, Identifiable, Hashable {
 
     var icon: String {
         switch self {
+        case .bookGoals: return "target"
+        case .bookQuotes: return "quote.bubble"
+        case .bookShelves: return "books.vertical"
+        case .bookMaintenance: return "wrench.and.screwdriver"
         case .home: return "house.fill"
         case .library: return "books.vertical.fill"
         case .reading: return "book.pages.fill"
@@ -82,6 +90,7 @@ struct DashboardShellView: View {
     @State private var quickReader: DashboardQuickReaderRoute?
     @State private var showCommandPalette = false
     @State private var sessionSummary: ComicPortReadingSessionSummary?
+    @AppStorage("ComicPort.ComicHub.sceneTheme") private var comicSceneTheme = ComicHubSceneTheme.city.rawValue
     @AppStorage("ComicPort.lastDashboardSection") private var persistedSection = DashboardSection.home.rawValue
 
     var body: some View {
@@ -89,12 +98,15 @@ struct DashboardShellView: View {
             let showSidebar = proxy.size.width >= 1000 && horizontalSizeClass == .regular
 
             ZStack(alignment: .bottom) {
-                Color(red: 0.025, green: 0.035, blue: 0.05)
+                (store.activeReaderProfile == .books
+                    ? Color(red: 0.12, green: 0.075, blue: 0.045)
+                    : Color(red: 0.025, green: 0.035, blue: 0.05))
                     .ignoresSafeArea()
 
                 HStack(spacing: 0) {
                     if showSidebar {
                         DashboardSidebar(selection: $selection)
+                            .environment(\.panelAccentColor, store.activeReaderProfile == .books ? Color(red: 0.88, green: 0.65, blue: 0.36) : (store.activeReaderProfile == .comics ? ComicHubPalette.red : accentColor))
                             .frame(width: ComicPortPlatform.isMac ? 246 : 220)
                     }
 
@@ -104,11 +116,20 @@ struct DashboardShellView: View {
                             showImporter: $showImporter,
                             compact: !showSidebar
                         )
+                        .environment(\.panelAccentColor, store.activeReaderProfile == .books ? Color(red: 0.88, green: 0.65, blue: 0.36) : (store.activeReaderProfile == .comics ? ComicHubPalette.red : accentColor))
 
                         Divider().opacity(0.18)
 
-                        DashboardContent(selection: $selection, searchText: searchText)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        DashboardContent(
+                            selection: $selection,
+                            searchText: searchText
+                        )
+                        .environment(\.panelAccentColor, store.activeReaderProfile == .books ? Color(red: 0.88, green: 0.65, blue: 0.36) : (store.activeReaderProfile == .comics ? ComicHubPalette.red : accentColor))
+                        .id(store.activeReaderProfile.rawValue)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity
+                        )
                     }
                 }
 
@@ -137,8 +158,14 @@ struct DashboardShellView: View {
                 Text(store.importError ?? "")
             }
         }
+        .id(comicSceneTheme)
         .preferredColorScheme(.dark)
-        .tint(accentColor)
+        .environment(\.comicHubEnabled, store.activeReaderProfile == .comics)
+        .tint(store.activeReaderProfile == .books ? Color(red: 0.88, green: 0.65, blue: 0.36) : (store.activeReaderProfile == .comics ? ComicHubPalette.red : accentColor))
+        .onChange(of: store.activeReaderProfile) { _, _ in
+            searchText = ""
+            selection = .home
+        }
         .task(id: store.pendingQuickAction?.rawValue) {
             processQuickActionIfNeeded()
         }
@@ -156,13 +183,14 @@ struct DashboardShellView: View {
             .environmentObject(store)
         }
         .alert(item: $sessionSummary) { summary in
-            Alert(
-                title: Text("Reading Session"),
-                message: Text(
-                    "\(summary.title)\n\(summary.pagesRead) page(s) · " +
-                    "\(Int(summary.seconds / 60)) min"
-                ),
-                dismissButton: .default(Text("Done")) {
+            let book = store.books.first { $0.id == summary.bookID }
+            let isBook = book?.contentKind == .book
+            let duration = summary.seconds < 60 ? "\(Int(summary.seconds)) sn" : "\(Int(summary.seconds / 60)) dk"
+            let detail = book?.type == .epub ? duration : (isBook ? "\(summary.pagesRead) sayfa · \(duration)" : "\(summary.pagesRead) page(s) · \(Int(summary.seconds / 60)) min")
+            return Alert(
+                title: Text(isBook ? "Okuma oturumu" : "Reading Session"),
+                message: Text("\(summary.title)\n\(detail)"),
+                dismissButton: .default(Text(isBook ? "Tamam" : "Done")) {
                     store.clearSessionSummary()
                 }
             )
@@ -177,13 +205,14 @@ struct DashboardShellView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(.ultraThinMaterial, in: Capsule())
+                .comicHubMaterial(.ultraThinMaterial, in: Capsule())
                 .padding(.top, 10)
             }
         }
         .onAppear {
             if let restored = DashboardSection.allCases.first(where: { $0.rawValue == persistedSection }) {
-                selection = restored
+                let bookSections: Set<DashboardSection> = [.bookGoals, .bookQuotes, .bookShelves, .bookMaintenance]
+                selection = store.activeReaderProfile != .books && bookSections.contains(restored) ? .home : restored
             }
         }
         .onChange(of: selection) { _, newValue in
@@ -261,24 +290,37 @@ private struct DashboardSidebar: View {
     #endif
 
     private let primary: [DashboardSection] = [.home, .library, .reading, .toRead, .completed]
-    private let secondary: [DashboardSection] = [.recentAdded, .recentRead, .favorites, .characters, .series, .readingOrder2, .achievements, .lists, .notes, .myPanels, .smartSearch, .libraryHealth, .libraryTools, .smartCollections]
+    private var secondary: [DashboardSection] {
+        if store.activeReaderProfile == .books { return [.bookGoals, .bookQuotes, .bookShelves, .bookMaintenance, .achievements, .notes, .smartSearch] }
+        return [.recentAdded, .recentRead, .favorites, .characters, .series, .readingOrder2, .achievements, .lists, .notes, .myPanels, .smartSearch, .libraryHealth, .libraryTools, .smartCollections]
+    }
     private let tertiary: [DashboardSection] = [.sourcesSync, .journal, .statistics, .wrapped, .history, .saved, .settings]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(accentColor.opacity(0.18))
-                    Image(systemName: "book.closed.fill")
-                        .font(.title2.bold())
-                        .foregroundStyle(accentColor)
+                Button {
+                    let profiles = ComicPortReaderProfile.allCases
+                    let current = profiles.firstIndex(of: store.activeReaderProfile) ?? 0
+                    store.setReaderProfile(profiles[(current + 1) % profiles.count])
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(accentColor.opacity(0.18))
+                        Image(systemName: store.activeReaderProfile.systemImage)
+                            .font(.title2.bold())
+                            .foregroundStyle(accentColor)
+                    }
+                    .frame(width: 40, height: 40)
+                    .contentShape(RoundedRectangle(cornerRadius: 8))
                 }
-                .frame(width: 40, height: 40)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Sonraki okuyucu profiline geç")
+                .help("Sonraki okuyucu profiline geç")
 
                 VStack(alignment: .leading, spacing: -2) {
-                    Text("COMIC")
-                    Text("PORT")
+                    Text(store.activeReaderProfile == .books ? "BOOK" : "COMIC")
+                    Text(store.activeReaderProfile == .books || store.activeReaderProfile == .comics ? "HUB" : "PORT")
                 }
                 .font(.headline.bold())
                 .italic()
@@ -323,7 +365,11 @@ private struct DashboardSidebar: View {
             .padding(.bottom, ComicPortPlatform.isMac ? 14 : 92)
         }
         .background {
-            if ComicPortPlatform.isMac {
+            if store.activeReaderProfile == .books {
+                Color(red: 0.16, green: 0.10, blue: 0.065)
+            } else if store.activeReaderProfile == .comics {
+                ComicHubPalette.canvas
+            } else if ComicPortPlatform.isMac {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .environment(\.colorScheme, .dark)
@@ -349,7 +395,7 @@ private struct DashboardSidebar: View {
                             .font(.subheadline.weight(selection == item ? .semibold : .regular))
                         Spacer()
                     }
-                    .foregroundStyle(selection == item ? .white : .secondary)
+                    .foregroundStyle(selection == item ? (store.activeReaderProfile == .comics ? ComicHubPalette.onAccent : Color.white) : Color.secondary)
                     .padding(.horizontal, 12)
                     .frame(height: 42)
                     .background(
@@ -373,7 +419,7 @@ private struct DashboardSidebar: View {
                     .font(.subheadline.weight(selection == item ? .semibold : .regular))
                 Spacer()
             }
-            .foregroundStyle(selection == item ? .white : .secondary)
+            .foregroundStyle(selection == item ? (store.activeReaderProfile == .comics ? ComicHubPalette.onAccent : Color.white) : Color.secondary)
             .padding(.horizontal, 11)
             .frame(height: 38)
             .contentShape(Rectangle())
@@ -435,7 +481,12 @@ private struct DashboardTopBar: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
 
-                TextField("Çizgi roman ara…", text: $searchText)
+                TextField(
+                    store.activeReaderProfile == .mix
+                        ? "Tüm kitaplıkta ara…"
+                        : "\(store.activeReaderProfile.rawValue) içinde ara…",
+                    text: $searchText
+                )
                     .textFieldStyle(.plain)
                     .autocorrectionDisabled()
 
@@ -478,6 +529,64 @@ private struct DashboardTopBar: View {
                 .padding(.horizontal, 12)
             }
 
+            Menu {
+                Picker(
+                    "Reader Profile",
+                    selection: Binding(
+                        get: { store.activeReaderProfile },
+                        set: { store.setReaderProfile($0) }
+                    )
+                ) {
+                    ForEach(ComicPortReaderProfile.allCases) { profile in
+                        Label(
+                            profile.rawValue,
+                            systemImage: profile.systemImage
+                        )
+                        .tag(profile)
+                    }
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(
+                        systemName: store.activeReaderProfile.systemImage
+                    )
+
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(
+                            store.activeReaderProfile == .mix
+                                ? "Mix"
+                                : store.activeReaderProfile.rawValue
+                        )
+                        .font(.subheadline.weight(.semibold))
+
+                        Text(
+                            store.activeReaderProfile == .mix
+                                ? "All Library"
+                                : "Reader Profile"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    }
+
+                    Image(systemName: "chevron.down")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .frame(height: 40)
+                .background(
+                    .white.opacity(0.07),
+                    in: RoundedRectangle(cornerRadius: 9)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9)
+                        .stroke(.white.opacity(0.08))
+                )
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .help("Switch Reader Profile")
+
             Button {
                 showImporter = true
             } label: {
@@ -487,7 +596,7 @@ private struct DashboardTopBar: View {
                     if ComicPortPlatform.isMac {
                         Text("⌘O")
                             .font(.caption2.monospaced())
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle((store.activeReaderProfile == .comics ? ComicHubPalette.onAccent : Color.white).opacity(0.72))
                     }
                 }
                 .font(.subheadline.weight(.semibold))
@@ -497,7 +606,7 @@ private struct DashboardTopBar: View {
                     accentColor,
                     in: RoundedRectangle(cornerRadius: 9)
                 )
-                .foregroundStyle(.white)
+                .foregroundStyle(store.activeReaderProfile == .comics ? ComicHubPalette.onAccent : Color.white)
             }
             .buttonStyle(.plain)
             .disabled(store.importInProgressCount >= 8)
@@ -517,30 +626,43 @@ private struct DashboardContent: View {
     let searchText: String
 
     var body: some View {
+        let query = BookLibraryQuery(searchText)
         Group {
-            if !searchText.isEmpty {
+            if !query.isEmpty {
                 DashboardBookCollectionView(
                     title: "Arama Sonuçları",
-                    books: store.libraryBooks.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+                    books: store.profileLibraryBooks.filter { query.matches($0) },
+                    emptyMessage: store.activeReaderProfile == .books ? "Aramana uyan kitap bulunamadı." : "Aramana uyan çizgi roman bulunamadı.",
+                    showsQuickFilters: true
                 )
             } else {
                 switch selection {
+                case .bookGoals: BookHubGoalsView()
+                case .bookQuotes: BookHubQuotesView()
+                case .bookShelves: BookHubShelvesView()
+                case .bookMaintenance: BookHubMaintenanceView()
                 case .home:
-                    DashboardHomeView(selection: $selection)
+                    if store.activeReaderProfile == .books {
+                        BookHubHomeView(selection: $selection)
+                    } else if store.activeReaderProfile == .comics {
+                        ComicHubHomeView(selection: $selection)
+                    } else {
+                        DashboardHomeView(selection: $selection)
+                    }
                 case .library:
-                    DashboardBookCollectionView(title: "Kütüphanem", books: store.libraryBooks)
+                    DashboardBookCollectionView(title: store.activeReaderProfile == .comics ? "Kütüphanem" : (store.activeReaderProfile == .mix ? "Mix Kitaplık" : store.activeReaderProfile.rawValue), books: store.profileLibraryBooks, showsQuickFilters: true)
                 case .reading:
-                    DashboardBookCollectionView(title: "Okunuyor", books: store.books(with: .reading))
+                    DashboardBookCollectionView(title: "Okunuyor", books: store.profileBooks(with: .reading))
                 case .toRead:
-                    DashboardBookCollectionView(title: "Okunacak", books: store.books(with: .toRead))
+                    DashboardBookCollectionView(title: "Okunacak", books: store.profileBooks(with: .toRead))
                 case .completed:
-                    DashboardBookCollectionView(title: "Tamamlandı", books: store.books(with: .completed))
+                    DashboardBookCollectionView(title: "Tamamlandı", books: store.profileBooks(with: .completed))
                 case .recentAdded:
-                    DashboardBookCollectionView(title: "Son Eklenenler", books: store.recentlyAdded)
+                    DashboardBookCollectionView(title: "Son Eklenenler", books: store.profileRecentlyAdded)
                 case .recentRead:
-                    DashboardBookCollectionView(title: "Son Okunanlar", books: store.recentlyRead)
+                    DashboardBookCollectionView(title: "Son Okunanlar", books: store.profileRecentlyRead)
                 case .favorites:
-                    DashboardBookCollectionView(title: "Favoriler", books: store.libraryBooks.filter { $0.favorite })
+                    DashboardBookCollectionView(title: "Favoriler", books: store.profileLibraryBooks.filter { $0.favorite })
                 case .characters:
                     CharacterLibraryView()
                 case .series:
@@ -580,6 +702,8 @@ private struct DashboardContent: View {
                 }
             }
         }
+        .bookHubSurface(when: store.activeReaderProfile == .books)
+        .comicHubSurface(when: store.activeReaderProfile == .comics)
         .padding(.bottom, ComicPortPlatform.isMac ? 14 : 78)
     }
 }
@@ -596,11 +720,11 @@ private struct DashboardHomeView: View {
     @State private var activeReader: DashboardReaderRoute?
 
     private var continueBooks: [ComicBook] {
-        Array(store.books(with: .reading).prefix(4))
+        Array(store.profileBooks(with: .reading).prefix(4))
     }
 
     private var recentBooks: [ComicBook] {
-        Array(store.recentlyAdded.prefix(6))
+        Array(store.profileRecentlyAdded.prefix(6))
     }
 
     var body: some View {
@@ -611,6 +735,43 @@ private struct DashboardHomeView: View {
             } else {
                 ScrollView(showsIndicators: false) {
                     LazyVStack(spacing: 16) {
+                HStack(spacing: 12) {
+                    Image(
+                        systemName: store.activeReaderProfile.systemImage
+                    )
+                    .font(.title2)
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(
+                        .white.opacity(0.06),
+                        in: RoundedRectangle(cornerRadius: 12)
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(
+                            store.activeReaderProfile == .mix
+                                ? "Mix Kitaplık"
+                                : store.activeReaderProfile.rawValue
+                        )
+                        .font(.headline)
+
+                        Text(store.activeReaderProfile.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Text("\(store.profileLibraryBooks.count) kitap")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .background(
+                    .white.opacity(0.035),
+                    in: RoundedRectangle(cornerRadius: 14)
+                )
+
                 ReadingSummaryStrip()
 
                 ViewThatFits(in: .horizontal) {
@@ -648,8 +809,10 @@ private struct DashboardHomeView: View {
                     }
                 }
 
-                CompactComicFactBar()
-                CompactComicRecommendationBar()
+                if store.activeReaderProfile != .books {
+                    CompactComicFactBar()
+                    CompactComicRecommendationBar()
+                }
 
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 16) {
@@ -676,6 +839,215 @@ private struct DashboardHomeView: View {
                 .environmentObject(store)
                 .preferredColorScheme(.dark)
         }
+    }
+}
+
+// A bounded, lazy bookshelf; no metadata scans or image decoding on the UI thread.
+private struct BookHubHomeView: View {
+    @State private var selectedShelf: BookShelfGroup?
+    @State private var selectedReview: BookMetadataReviewField?
+    @EnvironmentObject var store: LibraryStore
+    @Binding var selection: DashboardSection
+    @State private var activeReader: DashboardReaderRoute?
+    private let amber = Color(red: 0.88, green: 0.65, blue: 0.36)
+
+    var body: some View {
+        let books = store.profileLibraryBooks
+        let reading = Array(books.filter { $0.readingStatus == .reading }
+            .sorted { ($0.lastReadAt ?? .distantPast) > ($1.lastReadAt ?? .distantPast) }.prefix(8))
+        let recent = Array(books.sorted { $0.addedAt > $1.addedAt }.prefix(12))
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("BOOK HUB", systemImage: "books.vertical.fill")
+                        .font(.caption.weight(.semibold)).tracking(3).foregroundStyle(amber)
+                    Text("Kütüphanene hoş geldin")
+                        .font(.system(.largeTitle, design: .serif, weight: .semibold))
+                    Text("Bir kitap seç, kaldığın yerden devam et.")
+                        .foregroundStyle(.secondary)
+                    HStack(spacing: 24) {
+                        Label("\(books.count) kitap", systemImage: "books.vertical")
+                        Label("\(books.filter { $0.readingStatus == .reading }.count) okunuyor", systemImage: "book.pages")
+                        Label("\(books.filter { $0.readingStatus == .completed }.count) tamamlandı", systemImage: "checkmark.circle")
+                    }
+                    .font(.callout).foregroundStyle(amber).padding(.top, 8)
+                }
+                .padding(28).frame(maxWidth: .infinity, alignment: .leading)
+                .background(LinearGradient(colors: [Color(red: 0.29, green: 0.18, blue: 0.10), Color(red: 0.17, green: 0.105, blue: 0.06)], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 18))
+                BookHubGoalCard()
+                Button("Hedeflerimi düzenle") { selection = .bookGoals }
+                if books.isEmpty {
+                    ContentUnavailableView("İlk rafını oluştur", systemImage: "books.vertical", description: Text("İçe Aktar ile ilk kitabını rafına ekle."))
+                }
+                shelf("Kaldığın yerden", books: reading, section: .reading)
+                shelf("Okunacak kitapların", books: BookHubReadingQueue.books(from: books), section: .toRead)
+                homeBookshelves(books: books)
+                authorShelves(books: books)
+                shelf("Rafına yeni eklenenler", books: recent, section: .recentAdded)
+                metadataShelves("Yayınevlerine göre", groups: BookShelfGroup.groups(in: books, byAuthors: false), icon: "building.2.fill")
+                if !books.isEmpty { metadataReview(books: books) }
+                HStack {
+                    Label("Kütüphanen çevrimdışı da yanında", systemImage: "internaldrive")
+                    Spacer()
+                    Button("Tüm kitaplar") { selection = .library }
+                }
+                .font(.callout).foregroundStyle(amber).padding(18)
+            }
+            .padding(24)
+        }
+        .sheet(item: $selectedShelf) { group in
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Kapat") { selectedShelf = nil }
+                }.padding()
+                DashboardBookCollectionView(title: group.title, books: store.profileLibraryBooks.filter { group.bookIDs.contains($0.id) })
+            }.bookHubSurface()
+            #if targetEnvironment(macCatalyst)
+            .frame(minWidth: 600, minHeight: 620)
+            #endif
+        }
+        .sheet(item: $selectedReview) { field in
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button("Kapat") { selectedReview = nil }
+                }.padding()
+                DashboardBookCollectionView(title: field.rawValue, books: store.profileLibraryBooks.filter { field.needsReview($0) }, emptyMessage: "Bu alanda kontrol edilecek kitap yok.")
+            }.bookHubSurface()
+            #if targetEnvironment(macCatalyst)
+            .frame(minWidth: 600, minHeight: 620)
+            #endif
+        }
+        .fullScreenCover(item: $activeReader) { route in
+            ReadingSessionHostView(initialBookID: route.id)
+                .environmentObject(store).preferredColorScheme(.dark)
+        }
+    }
+
+    private func metadataReview(books: [ComicBook]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Kitap bilgilerini gözden geçir").font(.system(.title2, design: .serif, weight: .semibold))
+            Text("Bu alanlar isteğe bağlıdır. Bir liste açıp kitap bilgilerini düzenleyebilirsin.")
+                .font(.caption).foregroundStyle(.secondary)
+            ForEach(BookMetadataReviewField.allCases) { field in
+                let count = books.filter { field.needsReview($0) }.count
+                Button { selectedReview = field } label: {
+                    HStack {
+                        Text(field.rawValue)
+                        Spacer()
+                        Text("\(count) kitap").monospacedDigit()
+                        Image(systemName: "chevron.right")
+                    }.padding(12).background(amber.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                }.buttonStyle(.plain).disabled(count == 0)
+            }
+        }.padding(20).background(.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func homeBookshelves(books: [ComicBook]) -> some View {
+        let shelves: [(String, String, [ComicBook])] = [
+            ("Okunuyor", "book.pages", books.filter { $0.readingStatus == .reading }),
+            ("Okunacak", "bookmark", books.filter { $0.readingStatus == .toRead }),
+            ("Tamamlandı", "checkmark.circle", books.filter { $0.readingStatus == .completed }),
+            ("Favoriler", "star", books.filter { $0.favorite })
+        ]
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Raflarım").font(.system(.title2, design: .serif, weight: .semibold))
+                Spacer()
+                Button("Tüm raflar") { selection = .bookShelves }.foregroundStyle(amber)
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 18)], spacing: 18) {
+                ForEach(shelves, id: \.0) { item in
+                    Button {
+                        selectedShelf = BookShelfGroup(id: "status-" + item.0, title: item.0, bookIDs: Set(item.2.map(\.id)))
+                    } label: {
+                        BookHubShelfPanel(title: item.0, icon: item.1, books: item.2)
+                    }.buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func authorShelves(books: [ComicBook]) -> some View {
+        let groups = BookShelfGroup.groups(in: books, byAuthors: true)
+        return VStack(alignment: .leading, spacing: 16) {
+            Text("Yazarlar").font(.system(.title2, design: .serif, weight: .semibold))
+            if groups.isEmpty {
+                Text("Kitaplarına yazar bilgisi eklediğinde burada görünür.").foregroundStyle(.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 26) {
+                        ForEach(groups) { group in
+                            Button { selectedShelf = group } label: {
+                                VStack(spacing: 12) {
+                                    BookHubAuthorAvatar(name: group.title, size: 88)
+                                    Text(group.title).font(.system(.callout, design: .serif, weight: .semibold))
+                                        .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.85)
+                                        .frame(width: 134, height: 44, alignment: .top).fixedSize(horizontal: false, vertical: true)
+                                    Text("\(group.bookIDs.count) kitap").font(.caption).foregroundStyle(.secondary)
+                                }.frame(width: 134).padding(.vertical, 8)
+                            }.buttonStyle(.plain)
+                            .accessibilityLabel("\(group.title), \(group.bookIDs.count) kitap")
+                        }
+                    }.padding(.horizontal, 4)
+                }
+            }
+        }.padding(22)
+        .background(Color(red: 0.13, green: 0.10, blue: 0.075), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(amber.opacity(0.13)))
+    }
+
+    private func metadataShelves(_ title: String, groups: [BookShelfGroup], icon: String) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.system(.title2, design: .serif, weight: .semibold))
+            if groups.isEmpty {
+                Text("Kitap bilgilerine bu alanı eklediğinde raflar burada görünür.").foregroundStyle(.secondary)
+            } else {
+                ScrollView(.horizontal) {
+                    LazyHStack(spacing: 12) {
+                        ForEach(groups) { group in
+                            Button { selectedShelf = group } label: {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Label(group.title, systemImage: icon).lineLimit(2)
+                                    Text("\(group.bookIDs.count) kitap").font(.caption).foregroundStyle(.secondary)
+                                }
+                                .frame(width: 190, alignment: .leading).padding(16)
+                                .background(amber.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func shelf(_ title: String, books: [ComicBook], section: DashboardSection) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text(title).font(.system(.title2, design: .serif, weight: .semibold))
+                Spacer()
+                Button("Tümünü gör") { selection = section }.foregroundStyle(amber)
+            }
+            if books.isEmpty {
+                Text("Bu raf henüz boş.").foregroundStyle(.secondary).padding(.vertical, 20)
+            } else {
+                ScrollView(.horizontal) {
+                    LazyHStack(alignment: .top, spacing: 20) {
+                        ForEach(books) { book in
+                            DashboardComicCard(book: book, width: 150, showProgress: true) { book in
+                                activeReader = DashboardReaderRoute(id: book.id)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+            }
+            RoundedRectangle(cornerRadius: 3)
+                .fill(LinearGradient(colors: [Color(red: 0.43, green: 0.27, blue: 0.14), Color(red: 0.23, green: 0.13, blue: 0.065)], startPoint: .top, endPoint: .bottom))
+                .frame(height: 10).shadow(color: .black.opacity(0.3), radius: 4, y: 4)
+        }
+        .padding(20).background(.white.opacity(0.025), in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -857,6 +1229,7 @@ private struct DashboardComicCard: View {
     let width: CGFloat
     let showProgress: Bool
     var onOpen: ((ComicBook) -> Void)? = nil
+    var standsOnShelf = false
 
     var body: some View {
         Group {
@@ -891,6 +1264,28 @@ private struct DashboardComicCard: View {
                 Label("Quick Preview", systemImage: "eye")
             }
 
+            Menu("Content Type") {
+                ForEach(ComicPortContentKind.allCases) { kind in
+                    Button {
+                        store.setContentKind(
+                            id: book.id,
+                            kind: kind
+                        )
+                    } label: {
+                        HStack {
+                            Label(
+                                kind.rawValue,
+                                systemImage: kind.systemImage
+                            )
+
+                            if book.contentKind == kind {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            }
+
             Menu("Reading Status") {
                 ForEach(ReadingStatus.allCases) { status in
                     Button {
@@ -920,11 +1315,19 @@ private struct DashboardComicCard: View {
                 .frame(width: width, height: width * 1.48)
                 .clipShape(RoundedRectangle(cornerRadius: 10))
 
+            if standsOnShelf { Color.clear.frame(height: 16) }
+
             Text(book.title)
                 .font(.subheadline.bold())
                 .foregroundStyle(.white)
                 .lineLimit(2)
                 .frame(width: width, alignment: .leading)
+
+            if book.contentKind == .book, let authors = book.bookMetadata?.authors, !authors.isEmpty {
+                Text(authors.joined(separator: ", "))
+                    .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                    .frame(width: width, alignment: .leading)
+            }
 
             if showProgress {
                 Text("%\(book.progressPercent) okundu")
@@ -990,8 +1393,8 @@ private struct DashboardCover: View {
             RoundedRectangle(cornerRadius: 8).fill(.white.opacity(0.055))
             CachedCoverImage(
                 url: store.coverURL(for: book),
-                comicType: book.type,
-                maxPixelSize: 640
+                comicType: book.type, revision: book.coverRevision,
+                maxPixelSize: CGFloat(BookHubPerformancePolicy.shelfCoverPixels)
             )
         }
         .overlay(RoundedRectangle(cornerRadius: 8).stroke(.white.opacity(0.07)))
@@ -1148,7 +1551,7 @@ private struct ReadingCalendarCard: View {
                         .environmentObject(store)
                         .padding(18)
                 }
-                .navigationTitle("Okuma & Çizgi Roman Takvimi")
+                .comicHubSurface().navigationTitle("Okuma & Çizgi Roman Takvimi")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
@@ -1326,9 +1729,13 @@ private struct DashboardPanel<Content: View>: View {
 // MARK: - Collections
 
 private struct DashboardBookCollectionView: View {
+    @EnvironmentObject var store: LibraryStore
     let title: String
     let books: [ComicBook]
+    var emptyMessage: String? = nil
+    var showsQuickFilters = false
 
+    @AppStorage("ComicPort.BookHub.librarySort") private var bookSortRaw = BookLibrarySort.original.rawValue
     @State private var quickFilter: LibraryQuickFilter = .all
     @AppStorage("ComicPort.Mac.LibraryCoverWidth")
     private var macCoverWidth: Double = 160
@@ -1351,89 +1758,151 @@ private struct DashboardBookCollectionView: View {
         ]
     }
 
-    private var supportsQuickTabs: Bool {
-        title == "Kütüphanem" || title == "Arama Sonuçları"
-    }
-
     private var filteredBooks: [ComicBook] {
-        guard supportsQuickTabs else { return books }
-        switch quickFilter {
-        case .all: return books
-        case .reading: return books.filter { $0.readingStatus == .reading }
-        case .toRead: return books.filter { $0.readingStatus == .toRead }
-        case .completed: return books.filter { $0.readingStatus == .completed }
-        case .favorites: return books.filter(\.favorite)
-        }
+        let filtered = showsQuickFilters ? books.filter { quickFilter.matches($0) } : books
+        guard store.activeReaderProfile == .books else { return filtered }
+        return (BookLibrarySort(rawValue: bookSortRaw) ?? .original).sorted(filtered)
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 16) {
-                    if supportsQuickTabs {
-                        Picker("Library Filter", selection: $quickFilter) {
-                            ForEach(LibraryQuickFilter.allCases) { filter in
-                                Text(filter.rawValue).tag(filter)
+        let displayedBooks = filteredBooks
+        if store.activeReaderProfile == .comics {
+            ComicHubCollectionView(title: title, books: books, showsQuickFilters: showsQuickFilters, emptyMessage: emptyMessage)
+        } else {
+            NavigationStack {
+                GeometryReader { geometry in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if showsQuickFilters {
+                            Picker(store.activeReaderProfile == .books ? "Okuma filtresi" : "Library Filter", selection: $quickFilter) {
+                                ForEach(LibraryQuickFilter.allCases) { filter in
+                                    Text(filter.label(forBooks: store.activeReaderProfile == .books)).tag(filter)
+                                }
                             }
+                            .pickerStyle(.segmented)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 14)
                         }
-                        .pickerStyle(.segmented)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 14)
-                    }
 
-                    if ComicPortPlatform.isMac {
-                        HStack(spacing: 14) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(title)
-                                    .font(.largeTitle.bold())
-                                Text("\(filteredBooks.count) çizgi roman")
-                                    .font(.caption)
+                        if ComicPortPlatform.isMac {
+                            HStack(spacing: 14) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(title)
+                                        .font(.largeTitle.bold())
+                                    Text("\(displayedBooks.count) \(store.activeReaderProfile == .books ? "kitap" : "çizgi roman")")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Image(systemName: store.activeReaderProfile == .books ? "books.vertical" : "rectangle.grid.3x2")
                                     .foregroundStyle(.secondary)
-                            }
 
-                            Spacer()
-
-                            Image(systemName: "rectangle.grid.3x2")
-                                .foregroundStyle(.secondary)
-
-                            Slider(
-                                value: $macCoverWidth,
-                                in: 132...220,
-                                step: 4
-                            )
-                            .frame(width: 150)
-                            .help("Adjust cover size")
-                        }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 18)
-                    }
-
-                    if filteredBooks.isEmpty {
-                        EmptyDashboardMessage(
-                            icon: "books.vertical",
-                            text: "Bu bölümde henüz çizgi roman yok."
-                        )
-                        .padding(.top, ComicPortPlatform.isMac ? 60 : 100)
-                    } else {
-                        LazyVGrid(
-                            columns: columns,
-                            alignment: .leading,
-                            spacing: ComicPortPlatform.isMac ? 20 : 22
-                        ) {
-                            ForEach(filteredBooks) { book in
-                                DashboardComicCard(
-                                    book: book,
-                                    width: cardWidth,
-                                    showProgress: true
+                                Slider(
+                                    value: $macCoverWidth,
+                                    in: 132...220,
+                                    step: 4
                                 )
+                                .frame(width: 150)
+                                .help("Adjust cover size")
                             }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 20)
+
+                        if store.activeReaderProfile == .books {
+                            HStack {
+                                Text("Sıralama").foregroundStyle(.secondary)
+                                Picker("Sıralama", selection: $bookSortRaw) {
+                                    ForEach(BookLibrarySort.allCases) { sort in Text(sort.rawValue).tag(sort.rawValue) }
+                                }.pickerStyle(.menu)
+                                Spacer()
+                            }.padding(.horizontal, 20)
+                        }
+
+                        if displayedBooks.isEmpty {
+                            EmptyDashboardMessage(
+                                icon: "books.vertical",
+                                text: showsQuickFilters && quickFilter != .all ? (store.activeReaderProfile == .books ? "Seçili filtreye uyan kitap bulunamadı." : "No comics match the selected filter.") : (emptyMessage ?? (store.activeReaderProfile == .books ? "Bu bölümde henüz kitap yok." : "Bu bölümde henüz çizgi roman yok."))
+                            )
+                            .padding(.top, ComicPortPlatform.isMac ? 60 : 100)
+                        } else if store.activeReaderProfile == .books {
+                            BookHubLibraryShelfRows(books: displayedBooks, cardWidth: cardWidth,
+                                                    availableWidth: geometry.size.width - 40)
+                                .padding(.horizontal, 20).padding(.bottom, 20)
+                        } else {
+                            LazyVGrid(
+                                columns: columns,
+                                alignment: .leading,
+                                spacing: ComicPortPlatform.isMac ? 20 : 22
+                            ) {
+                                ForEach(displayedBooks) { book in
+                                    DashboardComicCard(
+                                        book: book,
+                                        width: cardWidth,
+                                        showProgress: true
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.bottom, 20)
+                        }
                     }
                 }
+                .bookHubSurface().comicHubSurface().navigationTitle(ComicPortPlatform.isMac ? "" : title)
+                }
             }
-            .navigationTitle(ComicPortPlatform.isMac ? "" : title)
+        }
+    }
+}
+
+// The row width determines shelf capacity; existing cards retain detail links,
+// quick preview and status/favorite actions inside the wooden display.
+private struct BookHubLibraryShelfRows: View {
+    let books: [ComicBook]
+    let cardWidth: CGFloat
+    let availableWidth: CGFloat
+    private let spacing: CGFloat = 20
+    private var capacity: Int {
+        max(1, Int((availableWidth - 44 + spacing) / (cardWidth + spacing)))
+    }
+    private var rows: [[ComicBook]] {
+        stride(from: 0, to: books.count, by: capacity).map {
+            Array(books[$0..<min($0 + capacity, books.count)])
+        }
+    }
+    var body: some View {
+        LazyVStack(alignment: .leading, spacing: 22) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                HStack(alignment: .top, spacing: spacing) {
+                    ForEach(row) { book in
+                        DashboardComicCard(book: book, width: cardWidth,
+                                           showProgress: true, standsOnShelf: true)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 22).padding(.top, 22).padding(.bottom, 18)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(alignment: .top) {
+                    VStack(spacing: 0) {
+                        GeometryReader { geometry in
+                            Image("BookHubShelfBackdrop").resizable().scaledToFill()
+                                .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                        }.frame(height: cardWidth * 1.48 + 22)
+                        Rectangle()
+                            .fill(LinearGradient(colors: [Color(red: 0.51, green: 0.33, blue: 0.18),
+                                                         Color(red: 0.23, green: 0.13, blue: 0.065)],
+                                                 startPoint: .top, endPoint: .bottom))
+                            .frame(height: 12)
+                            .shadow(color: .black.opacity(0.4), radius: 4, y: 4)
+                        Spacer(minLength: 0)
+                    }.accessibilityHidden(true)
+                }
+                .background(Color(red: 0.16, green: 0.10, blue: 0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(red: 0.83, green: 0.65, blue: 0.40).opacity(0.22)))
+            }
         }
     }
 }
@@ -1517,7 +1986,7 @@ private struct DashboardHistoryView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Okuma Geçmişi")
+            .comicHubSurface().navigationTitle("Okuma Geçmişi")
         }
     }
 }
@@ -1526,14 +1995,18 @@ private struct DashboardSavedView: View {
     @EnvironmentObject var store: LibraryStore
 
     var body: some View {
+        let savedBooks = store.profileFilter(store.savedDataBooks)
         NavigationStack {
             ScrollView {
-                if store.savedDataBooks.isEmpty {
-                    EmptyDashboardMessage(icon: "archivebox", text: "Arşivlenmiş veya cihazdan kaldırılmış çizgi roman yok.")
+                if savedBooks.isEmpty {
+                    EmptyDashboardMessage(icon: "archivebox", text: store.activeReaderProfile == .books ? "Arşivlenmiş veya cihazdan kaldırılmış kitap yok." : "Arşivlenmiş veya cihazdan kaldırılmış çizgi roman yok.")
                         .padding(.top, 100)
                 } else {
                     LazyVStack(spacing: 12) {
-                        ForEach(store.savedDataBooks) { book in
+                        ForEach(savedBooks) { book in
+                            NavigationLink {
+                                BookDetailView(bookID: book.id)
+                            } label: {
                             HStack(spacing: 14) {
                                 DashboardCover(book: book)
                                     .frame(width: 58, height: 86)
@@ -1550,12 +2023,14 @@ private struct DashboardSavedView: View {
                             }
                             .padding(12)
                             .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding()
                 }
             }
-            .navigationTitle("Kaydedilenler")
+            .comicHubSurface().navigationTitle("Kaydedilenler")
         }
     }
 }
@@ -1564,6 +2039,7 @@ private struct DashboardSettingsView: View {
     @EnvironmentObject var store: LibraryStore
     @EnvironmentObject var theme: PanelThemeStore
     @Environment(\.panelAccentColor) private var accentColor
+    @AppStorage("ComicPort.ComicHub.sceneTheme") private var comicSceneTheme = ComicHubSceneTheme.city.rawValue
 
     var body: some View {
         NavigationStack {
@@ -1589,39 +2065,33 @@ private struct DashboardSettingsView: View {
                     Text("Bir seri algılandığında son sayfaya ulaştıktan sonra sonraki sayı otomatik açılabilir.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
+                }.comicHubRowSurface()
 
-                Section("Görünüm") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 10)], spacing: 10) {
-                        ForEach(PanelAccentTheme.allCases) { option in
+                if store.activeReaderProfile == .comics {
+                    Section("Özel temalar") {
+                        ForEach(ComicHubSceneTheme.allCases) { option in
                             Button {
-                                theme.accent = option
+                                comicSceneTheme = option.rawValue
                             } label: {
-                                HStack(spacing: 9) {
-                                    Circle()
-                                        .fill(option.color)
-                                        .frame(width: 20, height: 20)
-                                    Text(option.rawValue)
-                                        .foregroundStyle(.primary)
-                                    Spacer()
-                                    if theme.accent == option {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(option.color)
+                                HStack(spacing: 14) {
+                                    Image(systemName: option.symbol)
+                                        .font(.title2).foregroundStyle(accentColor).frame(width: 36)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(option.title).font(.headline).foregroundStyle(.primary)
+                                        Text(option.detail).font(.caption).foregroundStyle(.secondary)
                                     }
-                                }
-                                .padding(10)
-                                .background(
-                                    theme.accent == option ? option.color.opacity(0.12) : Color.secondary.opacity(0.06),
-                                    in: RoundedRectangle(cornerRadius: 10)
-                                )
+                                    Spacer()
+                                    if comicSceneTheme == option.rawValue {
+                                        Image(systemName: "checkmark.circle.fill").foregroundStyle(accentColor)
+                                    }
+                                }.padding(.vertical, 8).contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(option.title), \(comicSceneTheme == option.rawValue ? "seçili" : "temayı uygula")")
                         }
-                    }
-
-                    Text("Vurgu rengi menüler, butonlar ve ilerleme göstergelerinde kullanılır. Başarım nadirlik renkleri bağımsız kalır.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        Text("Comic Hub görünümüne uygulanır. Tema sahneleri uygulama için özgün olarak hazırlanmıştır.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }.comicHubRowSurface()
                 }
 
                 Section("Veri & Güvenlik") {
@@ -1647,14 +2117,14 @@ private struct DashboardSettingsView: View {
                     } else {
                         LabeledContent("Öneri modu", value: "Kişisel")
                     }
-                }
+                }.comicHubRowSurface()
 
                 Section("Depolama") {
                     Label("Storage Optimizer", systemImage: "internaldrive")
                     Text("Çizgi roman detayından PDF/arşiv için cihaz üzerinde depolama optimizasyonu yapabilirsin. Orijinal dosya yeni kopya doğrulanmadan değiştirilmez.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
+                }.comicHubRowSurface()
 
                 Section("Mac Health & Diagnostics") {
                     NavigationLink {
@@ -1670,18 +2140,18 @@ private struct DashboardSettingsView: View {
                     Text("Runs local-only storage and library checks. No diagnostic data is uploaded.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                }
+                }.comicHubRowSurface()
 
                 Section("Hakkında") {
                     LabeledContent("Platform", value: ComicPortPlatform.displayName)
                     LabeledContent("Codebase", value: ComicPortPlatform.sharedCodebaseMessage)
-                    LabeledContent("Sürüm", value: "2.2 · Stage 20.4.3 · Mac v1.0.3")
+                    LabeledContent("Sürüm", value: "2.3 · Stage 21.1 · Book Hub Foundation")
                     LabeledContent("Başarım", value: "\(AchievementCatalog.all.count)")
                     LabeledContent("Yerel katalog", value: "\(LocalComicDatabase.records.count) kayıt")
-                }
+                }.comicHubRowSurface()
             }
             .scrollContentBackground(.hidden)
-            .navigationTitle("Ayarlar")
+            .comicHubSurface().navigationTitle("Ayarlar")
         }
     }
 }
@@ -1750,7 +2220,7 @@ private struct ComicPortDiagnosticsView: View {
             }
             .padding(20)
         }
-        .navigationTitle("Diagnostics")
+        .comicHubSurface().navigationTitle("Diagnostics")
         .task {
             if snapshot == nil {
                 await refresh()
@@ -2218,7 +2688,7 @@ private struct StorageSidebarCard: View {
                 .frame(width: 52, height: 52)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(byteString(libraryBytes)).font(.caption.bold())
-                    Text("çizgi romanlar").font(.caption2).foregroundStyle(.secondary)
+                    Text("kütüphane").font(.caption2).foregroundStyle(.secondary)
                     Text("\(byteString(availableCapacity)) boş").font(.caption2).foregroundStyle(.tertiary)
                 }
             }
@@ -2407,7 +2877,7 @@ private struct ComicPortSmartCollectionsView: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Smart Collections")
+            .comicHubSurface().navigationTitle("Smart Collections")
             .sheet(isPresented: $showCreate) {
                 ComicPortCreateSmartCollectionView()
                     .environmentObject(store)
@@ -2490,7 +2960,7 @@ private struct ComicPortCreateSmartCollectionView: View {
                         "Title contains (optional)",
                         text: $titleContains
                     )
-                }
+                }.comicHubRowSurface()
 
                 Section("Rules") {
                     Picker(
@@ -2534,7 +3004,7 @@ private struct ComicPortCreateSmartCollectionView: View {
                         "Manga / right-to-left only",
                         isOn: $mangaOnly
                     )
-                }
+                }.comicHubRowSurface()
 
                 Section {
                     Text(
@@ -2542,9 +3012,9 @@ private struct ComicPortCreateSmartCollectionView: View {
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                }
+                }.comicHubRowSurface()
             }
-            .navigationTitle("New Smart Collection")
+            .comicHubSurface().navigationTitle("New Smart Collection")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
@@ -2617,7 +3087,7 @@ private struct ComicPortSourcesSyncView: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Sources & Sync")
+            .comicHubSurface().navigationTitle("Sources & Sync")
         }
         .fileImporter(
             isPresented: $showSourceFolderPicker,
@@ -2933,14 +3403,6 @@ private struct ComicPortSourcesSyncView: View {
 
 
 
-private enum LibraryQuickFilter: String, CaseIterable, Identifiable {
-    case all = "All"
-    case reading = "Reading"
-    case toRead = "To Read"
-    case completed = "Completed"
-    case favorites = "Favorites"
-    var id: String { rawValue }
-}
 
 private struct ComicQuickPreviewView: View {
     @EnvironmentObject var store: LibraryStore
@@ -2956,7 +3418,7 @@ private struct ComicQuickPreviewView: View {
                     HStack(alignment: .top, spacing: 22) {
                         CachedCoverImage(
                             url: store.coverURL(for: book),
-                            comicType: book.type,
+                            comicType: book.type, revision: book.coverRevision,
                             maxPixelSize: 900
                         )
                         .frame(width: 230, height: 350)
@@ -3037,7 +3499,7 @@ private struct ComicQuickPreviewView: View {
                 }
             }
         }
-        .navigationTitle("Quick Preview")
+        .comicHubSurface().navigationTitle("Quick Preview")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {
@@ -3239,7 +3701,7 @@ private struct DashboardBottomBar: View {
             }
         }
         .padding(6)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .comicHubMaterial(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.07)))
         .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
     }
@@ -3261,4 +3723,733 @@ func shortDuration(_ seconds: TimeInterval) -> String {
 
 private func byteString(_ bytes: Int64) -> String {
     ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+}
+
+// Shared by the home page and the collection browser; cover loading stays cached/bounded.
+struct BookHubShelfPanel: View {
+    @EnvironmentObject var store: LibraryStore
+    let title: String
+    let icon: String
+    let books: [ComicBook]
+    private let gold = Color(red: 0.83, green: 0.65, blue: 0.40)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Label(title, systemImage: icon)
+                        .font(.system(.title3, design: .serif, weight: .semibold)).lineLimit(2)
+                    Text("\(books.count) kitap").font(.caption).foregroundStyle(gold)
+                }
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(gold)
+            }.padding(20)
+            ZStack(alignment: .bottom) {
+                GeometryReader { geometry in
+                    Image("BookHubShelfBackdrop").resizable().scaledToFill()
+                        .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                }.accessibilityHidden(true)
+                HStack(alignment: .bottom, spacing: 7) {
+                    ForEach(Array(books.prefix(4))) { book in
+                        CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, revision: book.coverRevision, maxPixelSize: 180)
+                            .frame(width: 44, height: 68)
+                            .background(.black.opacity(0.25))
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                            .overlay(alignment: .leading) { Rectangle().fill(.white.opacity(0.15)).frame(width: 2) }
+                            .shadow(color: .black.opacity(0.65), radius: 4, x: 3, y: 2)
+                    }
+                    if books.isEmpty {
+                        Image(systemName: icon).font(.system(size: 30, weight: .ultraLight))
+                            .foregroundStyle(gold.opacity(0.35)).frame(height: 68)
+                    }
+                    Spacer(minLength: 5)
+                }.padding(.horizontal, 22).padding(.bottom, 26)
+
+            }.frame(height: 112).clipped()
+        }
+        .foregroundStyle(Color(red: 0.96, green: 0.91, blue: 0.82))
+        .background(LinearGradient(colors: [Color(red: 0.24, green: 0.16, blue: 0.10), Color(red: 0.13, green: 0.085, blue: 0.05)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(gold.opacity(0.23)))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title), \(books.count) kitap")
+    }
+}
+
+struct BookHubAuthorAvatar: View {
+    let name: String
+    var size: CGFloat = 88
+    private let authors = ["Robert Louis Stevenson", "Arthur Conan Doyle", "Bram Stoker", "Charles Dickens", "H. G. Wells", "Jane Austen", "Lewis Carroll", "Mary Shelley", "Oscar Wilde"]
+    private var portraitIndex: Int? { authors.firstIndex { BookLibraryQuery.fold($0) == BookLibraryQuery.fold(name) } }
+    // The illustrated sheet is not an exact grid. Crop each portrait around its
+    // own centre, inside its baked-in rim, so neighbouring portraits never leak in.
+    private let portraitCenters: [CGPoint] = [
+        CGPoint(x: 229, y: 206), CGPoint(x: 628, y: 204), CGPoint(x: 1020, y: 205),
+        CGPoint(x: 227, y: 598), CGPoint(x: 625, y: 599), CGPoint(x: 1023, y: 600),
+        CGPoint(x: 232, y: 986), CGPoint(x: 629, y: 986), CGPoint(x: 1027, y: 986)
+    ]
+    var body: some View {
+        Group {
+            if let index = portraitIndex, UIImage(named: "BookHubAuthorPortraits") != nil {
+                let scale = size / 334
+                let center = portraitCenters[index]
+                Image("BookHubAuthorPortraits").resizable()
+                    .frame(width: 1254 * scale, height: 1254 * scale)
+                    .offset(x: (627 - center.x) * scale, y: (627 - center.y) * scale)
+                    .frame(width: size, height: size).clipped()
+            } else {
+                ZStack {
+                    LinearGradient(colors: [Color(red: 0.44, green: 0.32, blue: 0.21), Color(red: 0.16, green: 0.12, blue: 0.09)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    Text(name.split(separator: " ").prefix(2).compactMap(\.first).map(String.init).joined())
+                        .font(.system(size: size * 0.28, weight: .medium, design: .serif)).foregroundStyle(.white.opacity(0.8))
+                }.frame(width: size, height: size)
+            }
+        }
+        .clipShape(Circle())
+        .overlay(Circle().stroke(Color(red: 0.76, green: 0.59, blue: 0.37).opacity(0.65), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 6, y: 3)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Comic Hub
+
+enum ComicHubSceneTheme: String, CaseIterable, Identifiable {
+    case city, cavern, workshop, forest, manor
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .city: return "Kızıl Şehir"
+        case .cavern: return "Gece Mağarası"
+        case .workshop: return "Kıyı Atölyesi"
+        case .forest: return "Kayıp Orman"
+        case .manor: return "Altın Salon"
+        }
+    }
+    var detail: String {
+        switch self {
+        case .city: return "Gece silüeti · lacivert ve kızıl"
+        case .cavern: return "Yeraltı komuta merkezi · kömür ve buz mavisi"
+        case .workshop: return "Çizgi roman atölyesi ve boş sergileme bölmeleri · kırmızı ve altın"
+        case .forest: return "Sarmaşıklar arasında unutulmuş bir uçak · yosun ve zümrüt"
+        case .manor: return "Şömine, gece şehri ve gökyüzünde Comic Hub · sarı ve altın"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .city: return "building.2.fill"
+        case .cavern: return "mountain.2.fill"
+        case .workshop: return "wrench.and.screwdriver.fill"
+        case .forest: return "leaf.fill"
+        case .manor: return "flame.fill"
+        }
+    }
+    var headline: String {
+        switch self {
+        case .city: return "HER SAYFADA\nYENİ BİR EVREN."
+        case .cavern: return "HİKÂYELERİNİN\nGİZLİ ÜSSÜ."
+        case .workshop: return "YENİ FİKİRLER.\nYENİ EVRENLER."
+        case .forest: return "HER HİKÂYE\nBİR KEŞİF."
+        case .manor: return "ŞEHRİN IŞIKLARI.\nSENİN HİKÂYELERİN."
+        }
+    }
+    var subtitle: String {
+        switch self {
+        case .city: return "Kahramanların, hikâyelerin, kendi koleksiyonun."
+        case .cavern: return "Dışarıda gece. İçeride keşfedilecek evrenler."
+        case .workshop: return "Ufukta okyanus. Tezgâhında bir sonraki hikâye."
+        case .forest: return "Yeşilin derinliklerinde, keşfedilmeyi bekleyen evrenler."
+        case .manor: return "Şöminenin sıcaklığında, bir sonraki sayfaya."
+        }
+    }
+    var heroHeight: CGFloat {
+        switch self {
+        case .manor: return 500
+        case .cavern: return 380
+        case .forest: return 340
+        case .city, .workshop: return 300
+        }
+    }
+    // The shell observes this same key and rebuilds themed surfaces when it changes.
+    static var selected: Self {
+        Self(rawValue: UserDefaults.standard.string(forKey: "ComicPort.ComicHub.sceneTheme") ?? "city") ?? .city
+    }
+}
+
+enum ComicHubPalette {
+    private static var scene: ComicHubSceneTheme { .selected }
+    static var canvas: Color {
+        switch scene {
+        case .city: return Color(red: 0.035, green: 0.050, blue: 0.095)
+        case .cavern: return Color(red: 0.025, green: 0.040, blue: 0.050)
+        case .workshop: return Color(red: 0.060, green: 0.025, blue: 0.030)
+        case .forest: return Color(red: 0.025, green: 0.060, blue: 0.040)
+        case .manor: return Color(red: 0.085, green: 0.060, blue: 0.025)
+        }
+    }
+    static var surface: Color {
+        switch scene {
+        case .city: return Color(red: 0.075, green: 0.100, blue: 0.165)
+        case .cavern: return Color(red: 0.065, green: 0.095, blue: 0.115)
+        case .workshop: return Color(red: 0.135, green: 0.055, blue: 0.060)
+        case .forest: return Color(red: 0.060, green: 0.125, blue: 0.080)
+        case .manor: return Color(red: 0.175, green: 0.125, blue: 0.050)
+        }
+    }
+    static var red: Color {
+        switch scene {
+        case .city: return Color(red: 0.96, green: 0.25, blue: 0.30)
+        case .cavern: return Color(red: 0.30, green: 0.78, blue: 0.90)
+        case .workshop: return Color(red: 0.82, green: 0.18, blue: 0.20)
+        case .forest: return Color(red: 0.48, green: 0.82, blue: 0.37)
+        case .manor: return Color(red: 1.0, green: 0.78, blue: 0.22)
+        }
+    }
+    static var blue: Color {
+        switch scene {
+        case .city: return Color(red: 0.25, green: 0.57, blue: 1.0)
+        case .cavern: return Color(red: 0.42, green: 0.70, blue: 0.82)
+        case .workshop: return Color(red: 0.94, green: 0.73, blue: 0.32)
+        case .forest: return Color(red: 0.34, green: 0.72, blue: 0.52)
+        case .manor: return Color(red: 0.94, green: 0.70, blue: 0.28)
+        }
+    }
+    static var onAccent: Color { (scene == .city || scene == .workshop) ? .white : Color(red: 0.035, green: 0.045, blue: 0.05) }
+    static var cream: Color {
+        switch scene {
+        case .city: return Color(red: 0.97, green: 0.95, blue: 0.88)
+        case .cavern: return Color(red: 0.89, green: 0.95, blue: 0.96)
+        case .workshop: return Color(red: 0.98, green: 0.94, blue: 0.85)
+        case .forest: return Color(red: 0.92, green: 0.97, blue: 0.85)
+        case .manor: return Color(red: 1.0, green: 0.96, blue: 0.83)
+        }
+    }
+}
+
+private struct ComicHubThemeKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var comicHubEnabled: Bool {
+        get { self[ComicHubThemeKey.self] }
+        set { self[ComicHubThemeKey.self] = newValue }
+    }
+}
+
+private struct ComicHubSurfaceModifier: ViewModifier {
+    @Environment(\.comicHubEnabled) private var inheritedTheme
+    let enabled: Bool?
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled ?? inheritedTheme {
+            content.scrollContentBackground(.hidden)
+                .background(ComicHubPalette.canvas.ignoresSafeArea())
+                .toolbarBackground(ComicHubPalette.canvas, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .presentationBackground(ComicHubPalette.canvas)
+        } else { content }
+    }
+}
+
+extension View {
+    func comicHubSurface(when enabled: Bool? = nil) -> some View {
+        modifier(ComicHubSurfaceModifier(enabled: enabled))
+    }
+}
+
+private struct ComicHubHomeView: View {
+    @EnvironmentObject var store: LibraryStore
+    @Binding var selection: DashboardSection
+    @State private var activeReader: DashboardReaderRoute?
+    @AppStorage("ComicPort.ComicHub.collectionLayout") private var collectionLayout = "covers"
+    @State private var seriesCount = 0
+    @State private var characterCount = 0
+    private var books: [ComicBook] { store.profileLibraryBooks }
+    private var reading: [ComicBook] { Array(store.profileBooks(with: .reading).prefix(8)) }
+    private var recent: [ComicBook] { Array(store.profileRecentlyAdded.prefix(10)) }
+    private var featured: ComicBook? { reading.first ?? recent.first }
+    private var revision: String { books.map { "\($0.id)|\($0.title)" }.joined(separator: ";") }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 28) {
+                hero
+                VStack(spacing: 10) {
+                    CompactComicFactBar()
+                    CompactComicRecommendationBar()
+                }
+                shelves
+                comicRow(title: "MACERAYA DEVAM", subtitle: "Son kareden bir sonraki sayfaya.", books: reading, destination: .reading)
+                discoveries
+                comicRow(title: "RAFINA YENİ GELENLER", subtitle: "Koleksiyonundaki en yeni sayılar.", books: recent, destination: .recentAdded)
+                VStack(alignment: .leading, spacing: 16) {
+                    sectionHeader("OKUMA RİTMİN", subtitle: "Hedeflerin ve çizgi roman takvimin.")
+                    ViewThatFits(in: .horizontal) {
+                        HStack(alignment: .top, spacing: 18) {
+                            ReadingGoalDashboardCard().frame(minWidth: 280, maxWidth: .infinity)
+                            ReadingCalendarCard().frame(minWidth: 300, maxWidth: .infinity)
+                        }
+                        VStack(spacing: 18) { ReadingGoalDashboardCard(); ReadingCalendarCard() }
+                    }
+                }
+                HStack {
+                    Label("Koleksiyonun çevrimdışı da yanında", systemImage: "internaldrive")
+                    Spacer()
+                    Button("Tüm çizgi romanlar", systemImage: "arrow.up.right") { selection = .library }
+                }.font(.callout).foregroundStyle(.secondary).padding(.horizontal, 4)
+            }.padding(24)
+        }
+        .background(ComicHubPalette.canvas)
+        .task(id: revision) {
+            let snapshot = books
+            let counts = await Task.detached(priority: .utility) {
+                (SeriesService.series(from: snapshot).count, CharacterLibraryService.profiles(from: snapshot).count)
+            }.value
+            guard !Task.isCancelled else { return }
+            seriesCount = counts.0; characterCount = counts.1
+        }
+        .fullScreenCover(item: $activeReader) { route in
+            ReadingSessionHostView(initialBookID: route.id).environmentObject(store).preferredColorScheme(.dark)
+        }
+    }
+
+    private var hero: some View {
+        heroText.padding(32)
+            .frame(maxWidth: .infinity, minHeight: ComicHubSceneTheme.selected.heroHeight, alignment: .leading)
+            .background {
+                GeometryReader { geometry in
+                    if ComicHubSceneTheme.selected == .manor {
+                        Image("ComicHubManor").resizable().scaledToFill().accessibilityHidden(true)
+                            .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    } else if ComicHubSceneTheme.selected == .forest {
+                        Image("ComicHubForest").resizable().scaledToFill().accessibilityHidden(true)
+                            .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    } else if ComicHubSceneTheme.selected == .workshop {
+                        Image("ComicHubWorkshop").resizable().scaledToFill().accessibilityHidden(true)
+                            .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    } else if ComicHubSceneTheme.selected == .cavern {
+                        Image("ComicHubCavern").resizable().scaledToFill().accessibilityHidden(true)
+                            .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    } else {
+                        Image("ComicHubCity").resizable().scaledToFill().accessibilityHidden(true)
+                            .frame(width: geometry.size.width, height: geometry.size.height).clipped()
+                    }
+                    LinearGradient(colors: [ComicHubPalette.canvas.opacity(0.96), ComicHubPalette.canvas.opacity(0.70), .clear], startPoint: .leading, endPoint: .trailing)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(RoundedRectangle(cornerRadius: 20).stroke(ComicHubPalette.blue.opacity(0.30)))
+    }
+
+    private var heroText: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 8) {
+                Rectangle().fill(ComicHubPalette.red).frame(width: 24, height: 3)
+                Text("COMIC HUB").font(.caption.weight(.black)).tracking(4)
+            }.foregroundStyle(ComicHubPalette.cream)
+            Text(ComicHubSceneTheme.selected.headline)
+                .font(.system(size: 38, weight: .black, design: .rounded)).italic()
+                .foregroundStyle(ComicHubPalette.cream).fixedSize(horizontal: false, vertical: true)
+            Text(ComicHubSceneTheme.selected.subtitle)
+                .font(.callout).foregroundStyle(.white.opacity(0.70))
+            HStack(spacing: 20) {
+                Label("\(books.count) çizgi roman", systemImage: "square.stack")
+                Label("\(seriesCount) seri", systemImage: "rectangle.stack")
+            }.font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.75))
+            heroActions
+        }
+    }
+
+    private var heroActions: some View {
+        HStack(spacing: 12) {
+            if let featured {
+                Button { activeReader = DashboardReaderRoute(id: featured.id) } label: {
+                    Label(featured.readingStatus == .reading ? "Okumaya devam et" : "Maceraya başla", systemImage: "play.fill")
+                        .font(.callout.bold()).padding(.horizontal, 18).padding(.vertical, 12)
+                        .background(ComicHubPalette.red, in: RoundedRectangle(cornerRadius: 8)).foregroundStyle(ComicHubPalette.onAccent)
+                }.buttonStyle(.plain)
+            }
+            Button("Koleksiyonum", systemImage: "arrow.right") { selection = .library }
+                .font(.callout.bold()).foregroundStyle(ComicHubPalette.cream)
+        }
+    }
+
+    private var shelves: some View {
+        let items: [(String, String, DashboardSection, [ComicBook], Color)] = [
+            ("Okuma masam", "book.pages", .reading, books.filter { $0.readingStatus == .reading }, ComicHubPalette.red),
+            ("Sıradaki sayılar", "bookmark", .toRead, books.filter { $0.readingStatus == .toRead }, ComicHubPalette.blue),
+            ("Arşiv kutusu", "checkmark.seal", .completed, books.filter { $0.readingStatus == .completed }, .mint),
+            ("Vitrinim", "star", .favorites, books.filter { $0.favorite }, .orange)
+        ]
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                sectionHeader("SAYI KUTULARIN", subtitle: "Okuma masan, sıradaki sayılar ve koleksiyon arşivin.")
+                Spacer()
+                Button("Tüm kutular", systemImage: "shippingbox") { collectionLayout = "boxes"; selection = .library }
+                    .font(.caption.bold()).foregroundStyle(ComicHubPalette.blue)
+            }
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 16)], spacing: 16) {
+            ForEach(items, id: \.0) { item in
+                Button { collectionLayout = "boxes"; selection = item.2 } label: {
+                    ComicHubShelfCard(title: item.0, icon: item.1, books: item.3, tint: item.4)
+                }.buttonStyle(.plain)
+            }
+            }
+        }
+    }
+
+    private var discoveries: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            sectionHeader("EVRENİNİ GENİŞLET", subtitle: "Koleksiyonunu farklı bir açıdan keşfet.")
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 16) {
+                    discovery(title: "Seri koleksiyonları", count: "\(seriesCount) seri", icon: "rectangle.stack.fill", tint: ComicHubPalette.blue, destination: .series).frame(minWidth: 280, maxWidth: .infinity)
+                    discovery(title: "Karakter atlası", count: "\(characterCount) karakter", icon: "person.crop.square.fill", tint: ComicHubPalette.red, destination: .characters).frame(minWidth: 280, maxWidth: .infinity)
+                }
+                VStack(spacing: 16) {
+                    discovery(title: "Seri koleksiyonları", count: "\(seriesCount) seri", icon: "rectangle.stack.fill", tint: ComicHubPalette.blue, destination: .series)
+                    discovery(title: "Karakter atlası", count: "\(characterCount) karakter", icon: "person.crop.square.fill", tint: ComicHubPalette.red, destination: .characters)
+                }
+            }
+        }
+    }
+
+    private func discovery(title: String, count: String, icon: String, tint: Color, destination: DashboardSection) -> some View {
+        Button { selection = destination } label: {
+            HStack(spacing: 18) {
+                Image(systemName: icon).font(.system(size: 30, weight: .bold)).foregroundStyle(tint)
+                    .frame(width: 68, height: 68).background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(title).font(.title3.bold()).foregroundStyle(ComicHubPalette.cream)
+                    Text(count).font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right").foregroundStyle(tint)
+            }.padding(22).background(ComicHubPalette.surface, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(tint.opacity(0.22)))
+        }.buttonStyle(.plain)
+    }
+
+    private func sectionHeader(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(title).font(.system(.title2, design: .rounded, weight: .heavy)).tracking(0.5).foregroundStyle(ComicHubPalette.cream)
+            Text(subtitle).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func comicRow(title: String, subtitle: String, books: [ComicBook], destination: DashboardSection) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack {
+                sectionHeader(title, subtitle: subtitle)
+                Spacer()
+                Button("Tümünü gör", systemImage: "arrow.right") { selection = destination }
+                    .font(.caption.bold()).foregroundStyle(ComicHubPalette.blue)
+            }
+            if books.isEmpty {
+                HStack(spacing: 14) {
+                    Image(systemName: "book.closed").font(.title2).foregroundStyle(ComicHubPalette.blue)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(destination == .reading ? "Yeni bir macera seni bekliyor" : "İlk çizgi romanını ekle").font(.headline)
+                        Text(destination == .reading ? "Koleksiyonundan bir sayı seçip okumaya başla." : "İçe Aktar ile koleksiyonunu oluşturmaya başla.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button("Koleksiyona git") { selection = .library }.font(.caption.bold())
+                }.padding(22).background(ComicHubPalette.surface, in: RoundedRectangle(cornerRadius: 12))
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 22) {
+                        ForEach(books) { book in
+                            ComicHubIssueCard(book: book) { activeReader = DashboardReaderRoute(id: $0.id) }.frame(width: 165)
+                        }
+                    }.padding(18)
+                }.background(ComicHubPalette.surface.opacity(0.65), in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+    }
+}
+
+private struct ComicHubShelfCard: View {
+    @EnvironmentObject var store: LibraryStore
+    let title: String
+    let icon: String
+    let books: [ComicBook]
+    let tint: Color
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Image(systemName: icon).foregroundStyle(tint)
+                Text(title).font(.headline).foregroundStyle(ComicHubPalette.cream).lineLimit(1)
+                Spacer(minLength: 2)
+                Image(systemName: "arrow.up.right").font(.caption.bold()).foregroundStyle(tint)
+            }
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 7).fill(ComicHubPalette.canvas)
+                    .overlay(RoundedRectangle(cornerRadius: 7).stroke(tint.opacity(0.25)))
+                    .padding(.horizontal, 8).padding(.bottom, 12)
+                HStack(alignment: .bottom, spacing: 7) {
+                    ForEach(Array(books.prefix(3))) { book in
+                        CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, revision: book.coverRevision, maxPixelSize: 180)
+                            .frame(width: 49, height: 76).background(.black.opacity(0.3))
+                            .clipShape(RoundedRectangle(cornerRadius: 2))
+                            .overlay(RoundedRectangle(cornerRadius: 2).stroke(.white.opacity(0.15)))
+                    }
+                    if books.isEmpty {
+                        Text("Henüz sayı yok").font(.caption).foregroundStyle(.white.opacity(0.3)).frame(height: 76)
+                    }
+                    Spacer(minLength: 0)
+                }.padding(.horizontal, 22).padding(.bottom, 43)
+                VStack(alignment: .leading, spacing: 7) {
+                    Rectangle().fill(tint.opacity(0.65)).frame(height: 2)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("COMIC PORT / BOX").font(.system(size: 8, weight: .heavy, design: .monospaced)).tracking(1)
+                            Text("\(books.count) SAYI").font(.system(.caption, design: .monospaced, weight: .black))
+                        }.foregroundStyle(ComicHubPalette.cream)
+                        Spacer()
+                        Capsule().fill(ComicHubPalette.canvas).frame(width: 35, height: 8)
+                    }.padding(.horizontal, 14).padding(.bottom, 12)
+                }
+                .background(LinearGradient(colors: [ComicHubPalette.surface, ComicHubPalette.canvas], startPoint: .top, endPoint: .bottom))
+                .clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 8, bottomTrailingRadius: 8))
+            }.frame(height: 130)
+        }.padding(18)
+        .background(ComicHubPalette.surface.opacity(0.55), in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(tint.opacity(0.25)))
+        .accessibilityElement(children: .ignore).accessibilityLabel("\(title), \(books.count) çizgi roman")
+    }
+}
+
+private struct ComicHubRowSurfaceModifier: ViewModifier {
+    @Environment(\.comicHubEnabled) private var enabled
+    @ViewBuilder func body(content: Content) -> some View {
+        if enabled { content.listRowBackground(ComicHubPalette.surface) }
+        else { content }
+    }
+}
+extension View {
+    func comicHubRowSurface() -> some View { modifier(ComicHubRowSurfaceModifier()) }
+}
+
+private struct ComicHubCollectionView: View {
+    @EnvironmentObject var store: LibraryStore
+    let title: String
+    let books: [ComicBook]
+    let showsQuickFilters: Bool
+    var emptyMessage: String?
+    @State private var filter: LibraryQuickFilter = .all
+    @AppStorage("ComicPort.ComicHub.collectionLayout") private var layout = "covers"
+    @AppStorage("ComicPort.ComicHub.collectionSort") private var sort = "recent"
+    @AppStorage("ComicPort.ComicHub.coverSize") private var coverSize = 175.0
+    private var filtered: [ComicBook] {
+        let matches = showsQuickFilters ? books.filter { filter.matches($0) } : books
+        switch sort {
+        case "title": return BookLibrarySort.title.sorted(matches)
+        case "series":
+            let byID = Dictionary(uniqueKeysWithValues: matches.map { ($0.id, $0) })
+            return SeriesService.series(from: matches).flatMap { $0.bookIDs.compactMap { byID[$0] } }
+        default: return BookLibrarySort.newest.sorted(matches)
+        }
+    }
+    private var columns: [GridItem] {
+        [GridItem(.adaptive(minimum: CGFloat(coverSize), maximum: CGFloat(coverSize) + 35), spacing: 24)]
+    }
+    var body: some View {
+        let displayed = filtered
+        NavigationStack {
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    header(count: displayed.count)
+                    if showsQuickFilters { filters }
+                    if displayed.isEmpty {
+                        ContentUnavailableView("Bu kutu henüz boş", systemImage: "shippingbox", description: Text(emptyMessage ?? "Filtreni değiştir veya koleksiyonuna yeni sayılar ekle."))
+                            .frame(maxWidth: .infinity).padding(.vertical, 48)
+                    } else if layout == "boxes" {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 480), spacing: 20)], alignment: .leading, spacing: 20) {
+                            ForEach(SeriesService.series(from: displayed)) { series in
+                                issueBox(series: series, books: SeriesService.books(in: series, from: displayed))
+                            }
+                        }
+                    } else {
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: 26) {
+                            ForEach(displayed) { book in ComicHubIssueCard(book: book) }
+                        }
+                    }
+                }.padding(24)
+            }.comicHubSurface()
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationTitle(ComicPortPlatform.isMac ? "" : title)
+        }
+    }
+    private func header(count: Int) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("COMIC PORT / KOLEKSİYON").font(.caption2.weight(.heavy)).tracking(2.5).foregroundStyle(ComicHubPalette.blue)
+                    Text(title).font(.system(.largeTitle, design: .rounded, weight: .black)).foregroundStyle(ComicHubPalette.cream)
+                    Text("\(count) sayı · \(SeriesService.series(from: filtered).count) seri").font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: layout == "boxes" ? "shippingbox.fill" : "rectangle.stack.fill")
+                    .font(.system(size: 38, weight: .light)).foregroundStyle(ComicHubPalette.blue.opacity(0.65))
+            }
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 20) { layoutControl; Spacer(); sortControl; sizeControl }
+                VStack(alignment: .leading, spacing: 14) { layoutControl; HStack { sortControl; Spacer(); sizeControl } }
+            }
+        }.padding(22).background(ComicHubPalette.surface.opacity(0.55), in: RoundedRectangle(cornerRadius: 16))
+    }
+    private var layoutControl: some View {
+        HStack(spacing: 5) {
+            layoutButton("Kapak vitrini", icon: "rectangle.grid.2x2", value: "covers")
+            layoutButton("Seri kutuları", icon: "shippingbox", value: "boxes")
+        }.padding(4).background(ComicHubPalette.canvas, in: RoundedRectangle(cornerRadius: 10))
+    }
+    private func layoutButton(_ title: String, icon: String, value: String) -> some View {
+        Button { layout = value } label: {
+            Label(title, systemImage: icon).font(.caption.bold()).padding(.horizontal, 12).padding(.vertical, 10)
+                .background(layout == value ? ComicHubPalette.blue.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 7))
+                .foregroundStyle(layout == value ? ComicHubPalette.cream : .secondary)
+        }.buttonStyle(.plain).accessibilityAddTraits(layout == value ? .isSelected : [])
+    }
+    private var sortControl: some View {
+        Menu {
+            Picker("Sıralama", selection: $sort) {
+                Text("Yeni eklenenler").tag("recent")
+                Text("Ada göre").tag("title")
+                Text("Seri / sayı sırası").tag("series")
+            }
+        } label: {
+            Label("Sıralama", systemImage: "arrow.up.arrow.down").font(.caption.bold())
+        }.foregroundStyle(ComicHubPalette.cream)
+    }
+    private var sizeControl: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "rectangle.expand.vertical")
+            Slider(value: $coverSize, in: 145...225, step: 10).frame(width: 100).accessibilityLabel("Kapak boyutu")
+        }.foregroundStyle(.secondary)
+    }
+    private var filters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 9) {
+                ForEach(LibraryQuickFilter.allCases) { item in
+                    Button { filter = item } label: {
+                        Text(item.label(forBooks: true)).font(.caption.bold()).padding(.horizontal, 16).padding(.vertical, 10)
+                            .background(filter == item ? ComicHubPalette.red : ComicHubPalette.surface, in: Capsule())
+                            .foregroundStyle(filter == item ? .white : .secondary)
+                    }.buttonStyle(.plain).accessibilityAddTraits(filter == item ? .isSelected : [])
+                }
+            }
+        }
+    }
+    private func issueBox(series: ComicSeries, books: [ComicBook]) -> some View {
+        VStack(alignment: .leading, spacing: 18) {
+            HStack(spacing: 12) {
+                Image(systemName: "shippingbox.fill").foregroundStyle(ComicHubPalette.blue)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(series.title).font(.title3.bold()).foregroundStyle(ComicHubPalette.cream)
+                    Text("\(books.count) sayı · \(books.filter { $0.readingStatus == .completed }.count) tamamlandı").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("SERİ KUTUSU").font(.caption2.monospaced().bold()).foregroundStyle(ComicHubPalette.blue).padding(8)
+                    .overlay(RoundedRectangle(cornerRadius: 5).stroke(ComicHubPalette.blue.opacity(0.3)))
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 20) {
+                    ForEach(books) { book in ComicHubIssueCard(book: book).frame(width: CGFloat(coverSize)) }
+                }.padding(.vertical, 8).padding(.horizontal, 4)
+            }
+            Rectangle().fill(LinearGradient(colors: [ComicHubPalette.blue.opacity(0.5), ComicHubPalette.surface], startPoint: .top, endPoint: .bottom)).frame(height: 6)
+        }.padding(20).background(ComicHubPalette.surface.opacity(0.4), in: RoundedRectangle(cornerRadius: 15))
+            .overlay(RoundedRectangle(cornerRadius: 15).stroke(ComicHubPalette.blue.opacity(0.15)))
+    }
+}
+
+private struct ComicHubIssueCard: View {
+    @EnvironmentObject var store: LibraryStore
+    let book: ComicBook
+    @State private var showQuickPreview = false
+    var onOpen: ((ComicBook) -> Void)? = nil
+    private var progress: Double { book.readingStatus == .completed ? 1 : max(0, min(1, book.progress)) }
+    private var statusColor: Color { book.readingStatus == .completed ? .mint : (book.readingStatus == .reading ? ComicHubPalette.red : ComicHubPalette.blue) }
+    private var issueLabel: String {
+        let parsed = SeriesService.parse(book.title)
+        guard let number = parsed.issueNumber else { return book.type.rawValue.uppercased() }
+        return "#" + (number.rounded() == number ? String(Int(number)) : String(number))
+    }
+    var body: some View {
+        Group {
+            if let onOpen { Button { onOpen(book) } label: { content } }
+            else { NavigationLink { BookDetailView(bookID: book.id) } label: { content } }
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button("Hızlı önizleme", systemImage: "eye") { showQuickPreview = true }
+            Button(book.favorite ? "Favorilerden çıkar" : "Favorilere ekle", systemImage: book.favorite ? "star.slash" : "star") { store.toggleFavorite(id: book.id) }
+            Menu("Okuma durumu") {
+                ForEach(ReadingStatus.allCases) { status in
+                    Button(status.label(forBooks: true), systemImage: status.systemImage) { store.setStatus(id: book.id, status: status) }
+                }
+            }
+            Menu("İçerik türü") {
+                ForEach(ComicPortContentKind.allCases) { kind in
+                    Button(kind.rawValue, systemImage: kind.systemImage) { store.setContentKind(id: book.id, kind: kind) }
+                }
+            }
+            NavigationLink("Kapak ve bilgileri düzenle") { BookDetailView(bookID: book.id) }
+        }
+        .sheet(isPresented: $showQuickPreview) {
+            ComicQuickPreviewView(bookID: book.id).environmentObject(store).comicHubSurface()
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("\(book.title), \(book.readingStatus.label(forBooks: true)), yüzde \(Int(progress * 100))")
+    }
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack(alignment: .topLeading) {
+                Rectangle().fill(Color.black.opacity(0.35))
+                CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, revision: book.coverRevision, maxPixelSize: 540)
+                    .padding(5)
+                Text(issueLabel).font(.caption2.monospaced().bold()).padding(.horizontal, 9).padding(.vertical, 6)
+                    .background(ComicHubPalette.canvas.opacity(0.95), in: UnevenRoundedRectangle(bottomTrailingRadius: 8)).foregroundStyle(ComicHubPalette.cream)
+                if book.favorite {
+                    Image(systemName: "star.fill").font(.caption).foregroundStyle(.yellow).padding(9).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
+            }
+            .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            .clipShape(RoundedRectangle(cornerRadius: 9))
+            .overlay(RoundedRectangle(cornerRadius: 9).stroke(.white.opacity(0.10)))
+            .shadow(color: .black.opacity(0.30), radius: 7, y: 5)
+            Text(book.title).font(.callout.weight(.semibold)).foregroundStyle(ComicHubPalette.cream)
+                .lineLimit(2).frame(maxWidth: .infinity, minHeight: 40, alignment: .topLeading)
+            HStack {
+                Circle().fill(statusColor).frame(width: 5, height: 5)
+                Text(book.readingStatus.label(forBooks: true)).font(.caption2)
+                Spacer(minLength: 2)
+                if book.readingStatus != .toRead { Text("%\(Int(progress * 100))").font(.caption2.monospacedDigit()) }
+            }.foregroundStyle(.secondary)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.08))
+                    Capsule().fill(statusColor).frame(width: geometry.size.width * progress)
+                }
+            }.frame(height: 3)
+        }
+    }
+}
+
+private struct ComicHubMaterialModifier<S: Shape>: ViewModifier {
+    @Environment(\.comicHubEnabled) private var enabled
+    let material: Material
+    let shape: S
+    func body(content: Content) -> some View {
+        content.background {
+            if enabled { shape.fill(ComicHubPalette.surface) }
+            else { shape.fill(material) }
+        }
+    }
+}
+extension View {
+    func comicHubMaterial<S: Shape>(_ material: Material, in shape: S) -> some View {
+        modifier(ComicHubMaterialModifier(material: material, shape: shape))
+    }
 }

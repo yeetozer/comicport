@@ -1,5 +1,46 @@
 import Foundation
-import SwiftUI
+
+enum AchievementDomain: String, CaseIterable, Identifiable {
+    case comics = "Çizgi Roman"
+    case books = "Kitap"
+    var id: String { rawValue }
+    func includes(_ book: ComicBook) -> Bool {
+        self == .books ? book.contentKind == .book : book.contentKind != .book
+    }
+}
+
+struct AchievementReadingTotals {
+    let pages: Int
+    let seconds: TimeInterval
+    let goalDays: Int
+    let maxDayPages: Int
+    let streak: Int
+
+    init(books: [ComicBook], history: [ReadingHistoryEntry], domain: AchievementDomain, dailyGoal: Int, now: Date = .now, calendar: Calendar = .current) {
+        let ids = Set(books.filter { domain.includes($0) }.map(\.id))
+        let entries = history.filter { ids.contains($0.bookID) }
+        pages = entries.reduce(0) { $0 + max(0, $1.pagesRead) }
+        seconds = entries.reduce(0) { $0 + max(0, $1.seconds) }
+        var daily: [Date: Int] = [:]
+        var activeDays: Set<Date> = []
+        for entry in entries {
+            let day = calendar.startOfDay(for: entry.date)
+            daily[day, default: 0] += max(0, entry.pagesRead)
+            if entry.pagesRead > 0 || entry.seconds > 0 { activeDays.insert(day) }
+        }
+        goalDays = dailyGoal > 0 ? daily.values.filter { $0 >= dailyGoal }.count : 0
+        maxDayPages = daily.values.max() ?? 0
+        var cursor = calendar.startOfDay(for: now)
+        if !activeDays.contains(cursor), let yesterday = calendar.date(byAdding: .day, value: -1, to: cursor), activeDays.contains(yesterday) { cursor = yesterday }
+        var count = 0
+        while activeDays.contains(cursor) {
+            count += 1
+            guard let previous = calendar.date(byAdding: .day, value: -1, to: cursor) else { break }
+            cursor = previous
+        }
+        streak = count
+    }
+}
 
 enum AchievementTier: String, Codable, CaseIterable, Identifiable {
     case bronze = "Bronze"
@@ -9,6 +50,15 @@ enum AchievementTier: String, Codable, CaseIterable, Identifiable {
     case legendary = "Legendary"
 
     var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .bronze: return "Bronz"
+        case .silver: return "Gümüş"
+        case .gold: return "Altın"
+        case .platinum: return "Platin"
+        case .legendary: return "Efsanevi"
+        }
+    }
     var systemImage: String {
         switch self {
         case .bronze: return "medal"
@@ -33,6 +83,20 @@ enum AchievementCategory: String, Codable, CaseIterable, Identifiable {
     case hidden = "Hidden"
 
     var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .reading: return "Okuma"
+        case .time: return "Süre"
+        case .streak: return "Okuma serisi"
+        case .goals: return "Hedefler"
+        case .collection: return "Koleksiyon"
+        case .omnibus: return "Omnibus"
+        case .character: return "Karakterler"
+        case .team: return "Takımlar"
+        case .special: return "Özel"
+        case .hidden: return "Gizli"
+        }
+    }
 }
 
 enum AchievementMetric: Codable, Hashable {
@@ -52,6 +116,8 @@ enum AchievementMetric: Codable, Hashable {
     case completedStoryArcs
     case annotatedPages
     case savedPanels
+    case classicStage(String)
+    case bookDailyGoals, bookAnnualGoals, bookAuthors, bookCollections
 }
 
 struct AchievementDefinition: Identifiable, Hashable {
@@ -64,6 +130,7 @@ struct AchievementDefinition: Identifiable, Hashable {
     let target: Double
     let metric: AchievementMetric
     let hidden: Bool
+    var domain: AchievementDomain { id.hasPrefix("book.") ? .books : .comics }
 }
 
 struct AchievementProfile: Codable, Sendable {
@@ -89,6 +156,11 @@ struct AchievementSnapshot {
     let completedStoryArcs: Int
     let annotatedPages: Int
     let savedPanels: Int
+    var classicStages: [String: Double] = [:]
+    var bookDailyGoals: Int = 0
+    var bookAnnualGoals: Int = 0
+    var bookAuthors: Int = 0
+    var bookCollections: Int = 0
 
     func value(for metric: AchievementMetric) -> Double {
         switch metric {
@@ -108,6 +180,11 @@ struct AchievementSnapshot {
         case .completedStoryArcs: return Double(completedStoryArcs)
         case .annotatedPages: return Double(annotatedPages)
         case .savedPanels: return Double(savedPanels)
+        case .classicStage(let id): return classicStages[id, default: 0]
+        case .bookDailyGoals: return Double(bookDailyGoals)
+        case .bookAnnualGoals: return Double(bookAnnualGoals)
+        case .bookAuthors: return Double(bookAuthors)
+        case .bookCollections: return Double(bookCollections)
         }
     }
 }
@@ -201,6 +278,37 @@ enum AchievementCatalog {
             items.append(AchievementDefinition(id: id, title: title, detail: "Secret requirement discovered.", category: .hidden, tier: .legendary, xp: xp, target: target, metric: metric, hidden: true))
         }
 
+        let bookSeries: [(String, [String], AchievementMetric, [Double], String)] = [
+            ("completed", ["İlk Kitabım", "Raf Bitiren", "Kitap Kurdu", "Yüz Kitap", "Kütüphane Ustası"], .completedBooks, [1, 5, 25, 100, 500], "kitap tamamla"),
+            ("pages", ["İlk Sayfalar", "Sayfa Yolcusu", "Sayfa Ustası", "Uzun Yolculuk", "Bitmeyen Hikâyeler"], .totalPages, [100, 1000, 5000, 10000, 50000], "kitap sayfası oku"),
+            ("time", ["İlk Okuma Saati", "Okuma Alışkanlığı", "Sessiz Saatler", "Kütüphane Mesaisi", "Okuma Ömrü"], .totalSeconds, [3600, 36000, 180000, 360000, 1800000], "saat kitap oku"),
+            ("library", ["İlk Rafım", "Dolu Raflar", "Kitap Koleksiyonu", "Ev Kütüphanesi", "Büyük Kütüphane"], .libraryBooks, [1, 10, 25, 100, 500], "kitabı kütüphanende tut"),
+            ("favorites", ["Sevdiğim Kitap", "Seçkin Kitaplar", "Özel Raf", "Altın Raf", "Kütüphanenin Kalbi"], .favorites, [1, 5, 25, 50, 100], "kitabı favorilerine ekle"),
+            ("ratings", ["İlk Kitap Puanım", "Kitap Eleştirmeni", "Deneyimli Okur", "Edebiyat Jürisi", "Usta Eleştirmen"], .ratedBooks, [1, 5, 25, 100, 250], "kitaba puan ver"),
+            ("streak", ["Üç Günlük Yolculuk", "Bir Haftalık Okur", "İki Haftalık Alışkanlık", "Bir Ay Kitap", "Durmayan Okur"], .currentStreak, [3, 7, 14, 30, 100], "gün üst üste kitap oku"),
+            ("notes", ["İlk Kitap Notum", "Kenar Notları", "Düşünce Defteri", "Araştırma Rafı", "Not Ustası"], .annotatedPages, [1, 10, 25, 100, 250], "kitap sayfasına not ekle")
+        ]
+        for (prefix, titles, metric, targets, requirement) in bookSeries {
+            let details = targets.map { target in
+                "\(Int(metric == .totalSeconds ? target / 3600 : target)) \(requirement)."
+            }
+            addSeries(prefix: "book.\(prefix)", titles: titles, details: details, category: prefix == "time" ? .time : (prefix == "streak" ? .streak : (["completed", "pages"].contains(prefix) ? .reading : .collection)), metric: metric, targets: targets, xps: [50, 150, 300, 700, 1800])
+        }
+        let milestones: [(String, [String], AchievementMetric, [Double], AchievementCategory, String)] = [
+            ("dailyGoals", ["Hedefe İlk Adım", "Hedef Haftası", "Hedef Alışkanlığı", "Yüz Hedef Günü", "Bir Yıl Hedef"], .bookDailyGoals, [1, 7, 30, 100, 365], .goals, "gün kitap dakika hedefini tamamla"),
+            ("annualGoals", ["Yıllık Hedef", "İki Yıllık Yol", "Üç Yıllık Okur", "Beş Yıllık Alışkanlık", "On Yıllık Okur"], .bookAnnualGoals, [1, 2, 3, 5, 10], .goals, "yılda kitap hedefini tamamla"),
+            ("authors", ["Yeni Sesler", "Beş Yazar", "Yazar Yolculuğu", "Edebiyat Haritası", "Elli Farklı Ses"], .bookAuthors, [2, 5, 10, 25, 50], .reading, "farklı yazardan kitap tamamla"),
+            ("collections", ["İlk Koleksiyon Bitti", "Üç Raf Bitti", "Koleksiyon Okuru", "On Raf Bitti", "Raf Ustası"], .bookCollections, [1, 3, 5, 10, 25], .collection, "kişisel koleksiyonun tüm kitaplarını tamamla")
+        ]
+        for (prefix, titles, metric, targets, category, detail) in milestones {
+            addSeries(prefix: "book.\(prefix)", titles: titles, details: targets.map { "\(Int($0)) \(detail)." }, category: category, metric: metric, targets: targets, xps: [50, 150, 300, 700, 1800])
+        }
+        for classic in ClassicReadingAchievements.books {
+            let tiers: [AchievementTier] = [.bronze, .silver, .gold]
+            for stage in 1...3 {
+                items.append(AchievementDefinition(id: "book.classic.\(classic.id).\(stage)", title: classic.titles[stage - 1], detail: "\(classic.title): \(["okumaya başla", "%50 ilerlemeye ulaş", "kitabı tamamla"][stage - 1]).", category: .special, tier: tiers[stage - 1], xp: [50, 100, 200][stage - 1], target: Double(stage), metric: .classicStage(classic.id), hidden: false))
+            }
+        }
         return items
     }()
 
@@ -230,5 +338,35 @@ extension AchievementProfile {
         let previous = Int(pow(Double(max(0, level - 1)), 2) * 175.0)
         let next = Int(pow(Double(level), 2) * 175.0)
         return max(1, next - previous)
+    }
+}
+
+/// Stable bundled IDs prevent unrelated books with similar titles unlocking these awards.
+enum ClassicReadingAchievements {
+    struct Classic { let id: String; let title: String; let titles: [String] }
+    static let books: [Classic] = [
+        Classic(id: "D6A31567-E495-5EF5-9E07-CB298C135ABE", title: "Pride and Prejudice", titles: ["Longbourn’a Davet", "Darcy’ye Bir Adım", "Gurur ve Önyargının Ötesinde"]),
+        Classic(id: "EBC47439-3CDE-5174-8562-CBB9AD9D706B", title: "Frankenstein", titles: ["Yaratılış Kıvılcımı", "Yaratığın İzinde", "Victor’un Son Mektubu"]),
+        Classic(id: "A4C8C595-5A5C-51A2-A421-AE5155289B62", title: "Dracula", titles: ["Transilvanya’ya Yolculuk", "Gecenin Kalbinde", "Şafak Vakti"]),
+        Classic(id: "C2478F54-E47D-5092-A9C0-8E76163E764D", title: "The Adventures of Sherlock Holmes", titles: ["Baker Street’e Hoş Geldin", "İpuçları Birleşiyor", "Watson’ın Defteri"]),
+        Classic(id: "BE91E184-0E36-54AF-8F9E-331BA68BF321", title: "Alice’s Adventures in Wonderland", titles: ["Tavşan Deliğinden İçeri", "Çılgın Çay Saati", "Harikalar Diyarından Dönüş"]),
+        Classic(id: "06D0E920-140A-502B-9D0C-CFA659A4360E", title: "The Picture of Dorian Gray", titles: ["Portreye İlk Bakış", "Gölgedeki Yüz", "Portrenin Sırrı"]),
+        Classic(id: "F51B3163-796F-57AB-8F62-270AED127A1A", title: "Dr. Jekyll and Mr. Hyde", titles: ["Soho’da Bir Kapı", "İki Yüzün Arasında", "Jekyll’ın İtirafı"]),
+        Classic(id: "174E75B3-9DAE-52F6-AD6B-3A5C14A35F69", title: "A Christmas Carol", titles: ["Marley’nin Ziyareti", "Ruhların Rehberliğinde", "Scrooge’un Yeni Sabahı"]),
+        Classic(id: "8D9CC4D3-033F-581A-A459-90D3E8294E68", title: "Treasure Island", titles: ["Harita Bulundu", "Hispaniola’da Yolculuk", "Flint’in Hazinesi"]),
+        Classic(id: "96AE77D7-84D9-5735-B2E7-87DC82AD5702", title: "The Time Machine", titles: ["Zamanın Kapısı", "802.701 Yılı", "Zaman Yolcusunun Dönüşü"])
+    ]
+    static func stages(books: [ComicBook], history: [ReadingHistoryEntry]) -> [String: Double] {
+        let known = Set(Self.books.map(\.id))
+        let readIDs = Set(history.filter { $0.pagesRead > 0 || $0.seconds > 0 }.map(\.bookID))
+        var values: [String: Double] = [:]
+        for book in books where book.contentKind == .book {
+            let id = book.id.uuidString
+            guard known.contains(id) else { continue }
+            let started = book.readingStatus == .reading || book.readingStatus == .completed || readIDs.contains(book.id)
+            guard started else { continue }
+            values[id] = book.readingStatus == .completed ? 3 : (book.progress >= 0.5 ? 2 : 1)
+        }
+        return values
     }
 }

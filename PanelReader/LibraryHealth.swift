@@ -231,6 +231,8 @@ enum LibraryHealthScanner {
 
     private static func actualPageCount(_ item: LibraryHealthDescriptor) -> Int {
         switch item.type {
+        case .epub:
+            return (try? EPUBService.open(item.fileURL).chapters.count) ?? 0
         case .pdf:
             return autoreleasepool {
                 PDFDocument(url: item.fileURL)?.pageCount ?? 0

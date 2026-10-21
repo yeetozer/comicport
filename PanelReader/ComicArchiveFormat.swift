@@ -18,7 +18,7 @@ enum ComicArchiveFormat: String, CaseIterable, Sendable {
     }
 
     static var allowedImportTypes: [UTType] {
-        var result: [UTType] = [.pdf]
+        var result: [UTType] = [.pdf, UTType(filenameExtension: "epub") ?? .data]
         var identifiers = Set(result.map(\.identifier))
 
         for ext in supportedExtensions.sorted() {

@@ -20,6 +20,16 @@
 	<array>
 		<dict>
 			<key>CFBundleTypeName</key>
+			<string>EPUB</string>
+			<key>LSItemContentTypes</key>
+			<array><string>org.idpf.epub-container</string></array>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
 			<string>PDF</string>
 			<key>LSItemContentTypes</key>
 			<array>

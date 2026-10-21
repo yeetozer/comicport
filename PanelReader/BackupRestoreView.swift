@@ -62,7 +62,7 @@ struct BackupRestoreView: View {
             .padding(20)
             .padding(.bottom, 70)
         }
-        .navigationTitle("Backup & Restore")
+        .comicHubSurface().navigationTitle("Backup & Restore")
         .navigationBarTitleDisplayMode(.inline)
         .overlay {
             if isWorking {
@@ -74,7 +74,7 @@ struct BackupRestoreView: View {
                             .font(.headline)
                     }
                     .padding(24)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                    .comicHubMaterial(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
                 }
             }
         }

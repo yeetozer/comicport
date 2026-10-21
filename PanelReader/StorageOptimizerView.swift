@@ -33,7 +33,7 @@ struct StorageOptimizerView: View {
                     ContentUnavailableView("File unavailable", systemImage: "externaldrive.badge.xmark", description: Text("Re-import the comic before optimizing it."))
                 }
             }
-            .navigationTitle("Storage Optimizer")
+            .comicHubSurface().navigationTitle("Storage Optimizer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -67,7 +67,7 @@ struct StorageOptimizerView: View {
                 .foregroundStyle(.secondary)
         }
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .comicHubMaterial(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
     }
 
     private func presetPicker(_ book: ComicBook) -> some View {
@@ -172,7 +172,7 @@ struct StorageOptimizerView: View {
                 }
             }
             .padding()
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+            .comicHubMaterial(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
         } else {
             Button {
                 start(book)

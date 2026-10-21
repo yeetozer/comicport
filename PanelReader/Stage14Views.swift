@@ -28,7 +28,7 @@ struct CompletionJournalEditor: View {
                         if let book {
                             CachedCoverImage(
                                 url: store.coverURL(for: book),
-                                comicType: book.type,
+                                comicType: book.type, revision: book.coverRevision,
                                 maxPixelSize: 480
                             )
                             .frame(width: 92, height: 136)
@@ -94,7 +94,7 @@ struct CompletionJournalEditor: View {
                 }
                 .padding(20)
             }
-            .navigationTitle("Reading Journal")
+            .comicHubSurface().navigationTitle("Reading Journal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -175,7 +175,7 @@ struct ReadingJournalView: View {
                 .padding(20)
                 .padding(.bottom, 80)
             }
-            .navigationTitle("Reading Journal")
+            .comicHubSurface().navigationTitle("Reading Journal")
             .searchable(text: $search, prompt: "Kitap veya not ara")
             .sheet(item: $selectedEntry) { entry in
                 JournalEntryDetailView(entry: entry)
@@ -238,7 +238,7 @@ struct ReadingJournalView: View {
                 if let book = store.books.first(where: { $0.id == entry.bookID }) {
                     CachedCoverImage(
                         url: store.coverURL(for: book),
-                        comicType: book.type,
+                        comicType: book.type, revision: book.coverRevision,
                         maxPixelSize: 360
                     )
                     .frame(width: 62, height: 92)
@@ -339,7 +339,7 @@ private struct JournalEntryDetailView: View {
                 }
                 .padding()
             }
-            .navigationTitle("Günlük Kaydı")
+            .comicHubSurface().navigationTitle("Günlük Kaydı")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

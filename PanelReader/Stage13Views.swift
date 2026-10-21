@@ -59,7 +59,7 @@ struct LibraryHealthView: View {
                 .padding(20)
                 .padding(.bottom, 80)
             }
-            .navigationTitle("Library Health")
+            .comicHubSurface().navigationTitle("Library Health")
             .task {
                 if snapshot == nil && progress == nil {
                     startScan(deep: false)
@@ -334,7 +334,7 @@ struct SmartReadingOrder2View: View {
 
     private var signature: Int {
         var hasher = Hasher()
-        for book in store.libraryBooks {
+        for book in store.profileLibraryBooks {
             hasher.combine(book.id)
             hasher.combine(book.title)
             hasher.combine(book.readingStatus.rawValue)
@@ -355,8 +355,8 @@ struct SmartReadingOrder2View: View {
                         Spacer()
                     }
 
-                    let missingCount = series.reduce(0) { $0 + SeriesService.missingIssues(in: $1, from: store.libraryBooks).count }
-                    let duplicateCount = series.reduce(0) { $0 + SeriesService.duplicateIssueNumbers(in: $1, from: store.libraryBooks).count }
+                    let missingCount = series.reduce(0) { $0 + SeriesService.missingIssues(in: $1, from: store.profileLibraryBooks).count }
+                    let duplicateCount = series.reduce(0) { $0 + SeriesService.duplicateIssueNumbers(in: $1, from: store.profileLibraryBooks).count }
 
                     HStack(spacing: 12) {
                         status("\(series.count)", "seri", "books.vertical.fill")
@@ -367,8 +367,8 @@ struct SmartReadingOrder2View: View {
 
                     LazyVStack(spacing: 12) {
                         ForEach(series) { item in
-                            let missing = SeriesService.missingIssues(in: item, from: store.libraryBooks)
-                            let duplicates = SeriesService.duplicateIssueNumbers(in: item, from: store.libraryBooks)
+                            let missing = SeriesService.missingIssues(in: item, from: store.profileLibraryBooks)
+                            let duplicates = SeriesService.duplicateIssueNumbers(in: item, from: store.profileLibraryBooks)
 
                             NavigationLink {
                                 SeriesDetailView(series: item)
@@ -402,9 +402,9 @@ struct SmartReadingOrder2View: View {
                 .padding(20)
                 .padding(.bottom, 80)
             }
-            .navigationTitle("Reading Order 2.0")
+            .comicHubSurface().navigationTitle("Reading Order 2.0")
             .task(id: signature) {
-                series = SeriesService.series(from: store.libraryBooks)
+                series = SeriesService.series(from: store.profileLibraryBooks)
             }
         }
     }
@@ -428,13 +428,13 @@ struct SeriesReadingOrder2Card: View {
 
     @State private var suggestions: [RelatedReadingSuggestion] = []
 
-    private var books: [ComicBook] { SeriesService.books(in: series, from: store.libraryBooks) }
-    private var missing: [SeriesMissingIssue] { SeriesService.missingIssues(in: series, from: store.libraryBooks) }
-    private var duplicates: [SeriesDuplicateIssue] { SeriesService.duplicateIssueNumbers(in: series, from: store.libraryBooks) }
+    private var books: [ComicBook] { SeriesService.books(in: series, from: store.profileLibraryBooks) }
+    private var missing: [SeriesMissingIssue] { SeriesService.missingIssues(in: series, from: store.profileLibraryBooks) }
+    private var duplicates: [SeriesDuplicateIssue] { SeriesService.duplicateIssueNumbers(in: series, from: store.profileLibraryBooks) }
 
     private var signature: Int {
         var hasher = Hasher()
-        for book in store.libraryBooks {
+        for book in store.profileLibraryBooks {
             hasher.combine(book.id)
             hasher.combine(book.title)
         }
@@ -509,7 +509,7 @@ struct SeriesReadingOrder2Card: View {
         .task(id: signature) {
             let sameIDs = Set(books.map(\.id))
             let sourceTitles = books.map(\.title)
-            let candidates = store.libraryBooks
+            let candidates = store.profileLibraryBooks
                 .filter { !sameIDs.contains($0.id) }
                 .map { RelatedReadingBook(id: $0.id, title: $0.title) }
 

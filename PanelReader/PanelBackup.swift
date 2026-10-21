@@ -19,7 +19,7 @@ struct BackupBookInfo: Codable, Sendable {
 }
 
 struct PanelBackupPayload: Codable {
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 4
 
     let schemaVersion: Int
     let createdAt: Date
@@ -38,6 +38,7 @@ struct PanelBackupPayload: Codable {
 
     // Schema 3. Optional so schema 1/2 backup files still decode.
     let smartCollections: [ComicPortSmartCollection]?
+    let bookHub: BookHubState?
 
     let pencilDrawings: [BackupPencilDrawing]
     let panelImages: [BackupPanelImage]

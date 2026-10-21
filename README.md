@@ -1,4 +1,22 @@
-# ComicPort — v2.1 Stage 5
+# ComicPort — güncel proje (21 Ekim 2026)
+
+Bu paket, Book Hub ve Comic Hub geliştirmelerinin son kaynak kodunu içerir.
+
+- Comic Hub temaları: Kızıl Şehir, Gece Mağarası, Kıyı Atölyesi, Kayıp Orman ve Altın Salon.
+- Temaları Comic Hub içindeki **Ayarlar → Özel temalar** bölümünden seçebilirsin.
+- Book Hub: 10 çevrimdışı klasik, kitaplara özel başarımlar, sıcak raflar ve yazar portreleri.
+- Comic Hub: sayı kutuları/kapak vitrini, bilgi kutucuğu ve okuma önerisi.
+- Beş yıldızlı kitapları mağara/atölye vitrinlerine yerleştirme fikri iptal edildi; bu özellik bulunmaz.
+
+**Çalıştırma:** `PanelReader.xcodeproj` dosyasını Xcode ile aç. Mac için `ComicPort Mac` şemasını ve `My Mac (Mac Catalyst)` hedefini seç. Cihazda çalıştırmak için kendi imzalama takımını seçmen gerekebilir.
+
+Son uygulama değişikliği Mac Catalyst üzerinde derlendi ve görsel olarak kontrol edildi. iPad için bu son tema turunda görsel doğrulama yapılmadı.
+
+Bu bir kaynak proje paketidir; derlenmiş/kurulabilir uygulama değildir. Kullanıcının içe aktardığı çizgi romanlar, puanları ve okuma geçmişi pakette yer almaz. Tema varlıkları, paketli klasikler, testler ve geliştirme belgeleri korunmuştur.
+
+## Önceki sürüm notları
+
+### v2.1 Stage 5
 
 Native offline iPad comic reader.
 

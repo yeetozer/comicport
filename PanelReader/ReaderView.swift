@@ -107,6 +107,11 @@ struct ReaderView: View {
                 .overlay {
                     GeometryReader { geometry in
                         ZStack {
+                            if !controlsVisible {
+                                Color.clear
+                                    .contentShape(Rectangle())
+                                    .onTapGesture { revealControls(bookID: book.id) }
+                            }
                             if controlsVisible {
                                 if usesSideControls(size: geometry.size) {
                                     HStack {
@@ -177,7 +182,6 @@ struct ReaderView: View {
                                 }
                             )
                             .frame(width: 1, height: 1)
-                            .opacity(0.001)
                         }
                         .simultaneousGesture(
                             DragGesture(minimumDistance: 55)
@@ -204,15 +208,21 @@ struct ReaderView: View {
                         : .easeInOut(duration: 0.20),
                     value: controlsVisible
                 )
-                .sheet(isPresented: $showReaderSettings) {
+                .sheet(isPresented: $showReaderSettings, onDismiss: {
+                    scheduleControlsAutoHide(for: book.id)
+                }) {
                     ReaderSettingsView(bookID: book.id, isPDF: book.type == .pdf)
                         .environmentObject(store)
                 }
-                .sheet(isPresented: $showTextNoteEditor) {
+                .sheet(isPresented: $showTextNoteEditor, onDismiss: {
+                    scheduleControlsAutoHide(for: book.id)
+                }) {
                     PageTextNoteEditor(bookID: book.id, page: book.currentPage)
                         .environmentObject(store)
                 }
-                .sheet(isPresented: $showLanguageTools) {
+                .sheet(isPresented: $showLanguageTools, onDismiss: {
+                    scheduleControlsAutoHide(for: book.id)
+                }) {
                     ReaderLanguageToolsView(
                         book: book,
                         page: book.currentPage,
@@ -220,7 +230,9 @@ struct ReaderView: View {
                         targetLanguage: readerSettings.translationTarget
                     )
                 }
-                .sheet(isPresented: $showPanelCapture) {
+                .sheet(isPresented: $showPanelCapture, onDismiss: {
+                    scheduleControlsAutoHide(for: book.id)
+                }) {
                     PanelCaptureView(bookID: book.id, page: book.currentPage)
                         .environmentObject(store)
                 }
@@ -882,12 +894,16 @@ struct ReaderView: View {
 
     private func toggleCatalystFullscreen() {
         #if targetEnvironment(macCatalyst)
-        UIApplication.shared.sendAction(
-            Selector(("toggleFullScreen:")),
-            to: nil,
-            from: nil,
-            for: nil
-        )
+        // Fullscreen belongs to the AppKit window, outside UIKit's responder chain.
+        // Resolve only public AppKit selectors, since Catalyst cannot import AppKit.
+        guard let applicationClass = NSClassFromString("NSApplication") as? NSObject.Type,
+              let application = applicationClass.perform(NSSelectorFromString("sharedApplication"))?
+                .takeUnretainedValue() as? NSObject,
+              let window = application.perform(NSSelectorFromString("keyWindow"))?
+                .takeUnretainedValue() as? NSObject else { return }
+        let action = NSSelectorFromString("toggleFullScreen:")
+        guard window.responds(to: action) else { return }
+        window.perform(action, with: nil)
         #endif
     }
 
@@ -936,6 +952,7 @@ struct ReaderView: View {
 }
 
 struct ReadingSessionHostView: View {
+    @EnvironmentObject var store: LibraryStore
     let initialBookID: UUID
     @State private var currentBookID: UUID
 
@@ -945,8 +962,14 @@ struct ReadingSessionHostView: View {
     }
 
     var body: some View {
-        ReaderView(bookID: currentBookID) { nextID in
-            currentBookID = nextID
+        Group {
+            if store.books.first(where: { $0.id == currentBookID })?.type == .epub {
+                EPUBReaderView(bookID: currentBookID)
+            } else {
+                ReaderView(bookID: currentBookID) { nextID in
+                    currentBookID = nextID
+                }
+            }
         }
         .id(currentBookID)
     }
@@ -1000,11 +1023,18 @@ private final class ReaderKeyboardController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
+        view.isUserInteractionEnabled = true
     }
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        DispatchQueue.main.async { [weak self] in
+            self?.claimKeyboardFocus()
+        }
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
         claimKeyboardFocus()
     }
 
@@ -1016,7 +1046,7 @@ private final class ReaderKeyboardController: UIViewController {
     }
 
     override var keyCommands: [UIKeyCommand]? {
-        [
+        let commands = [
             UIKeyCommand(
                 input: UIKeyCommand.inputLeftArrow,
                 modifierFlags: [],
@@ -1053,6 +1083,10 @@ private final class ReaderKeyboardController: UIViewController {
                 action: #selector(exitReader)
             )
         ]
+        for command in commands {
+            command.wantsPriorityOverSystemBehavior = true
+        }
+        return commands
     }
 
     @objc private func left() { onLeft?() }
@@ -1251,6 +1285,9 @@ private enum ReaderPageTextService {
         fileURL: URL
     ) -> String {
         switch book.type {
+        case .epub:
+            guard let publication = try? EPUBService.open(fileURL), publication.chapters.indices.contains(page) else { return "" }
+            return (try? EPUBPackage.text(at: publication.chapters[page].fileURL)) ?? ""
         case .pdf:
             guard let document = PDFDocument(url: fileURL),
                   page < document.pageCount,

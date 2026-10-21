@@ -2,6 +2,26 @@ import SwiftUI
 import UIKit
 import ImageIO
 
+enum BookCoverPreparation {
+    static func jpeg(_ data: Data) -> Data? {
+        guard let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        return jpeg(source: source)
+    }
+
+    static func jpeg(at url: URL) -> Data? {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+        return jpeg(source: source)
+    }
+
+    private static func jpeg(source: CGImageSource) -> Data? {
+        let options = [kCGImageSourceCreateThumbnailFromImageAlways: true,
+                       kCGImageSourceCreateThumbnailWithTransform: true,
+                       kCGImageSourceThumbnailMaxPixelSize: 1200] as CFDictionary
+        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options) else { return nil }
+        return UIImage(cgImage: image).jpegData(compressionQuality: 0.88)
+    }
+}
+
 final class PanelCoverCache: @unchecked Sendable {
     static let shared = PanelCoverCache()
     private let cache = NSCache<NSString, UIImage>()
@@ -30,7 +50,8 @@ final class PanelCoverCache: @unchecked Sendable {
     }
 
     func insert(_ image: UIImage, for key: String) {
-        let cost = Int(image.size.width * image.size.height * 4)
+        let cost = image.cgImage.map { $0.bytesPerRow * $0.height }
+            ?? Int(image.size.width * image.scale * image.size.height * image.scale * 4)
         cache.setObject(image, forKey: key as NSString, cost: cost)
     }
 }
@@ -38,6 +59,7 @@ final class PanelCoverCache: @unchecked Sendable {
 struct CachedCoverImage: View {
     let url: URL?
     let comicType: ComicType
+    var revision: Int = 0
     var maxPixelSize: CGFloat = 720
 
     @State private var image: UIImage?
@@ -61,7 +83,7 @@ struct CachedCoverImage: View {
 
     private var cacheKey: String {
         guard let url else { return "missing" }
-        return "\(url.path)|\(Int(maxPixelSize))"
+        return "\(url.path)|\(revision)|\(Int(maxPixelSize))"
     }
 
     @MainActor
@@ -77,19 +99,19 @@ struct CachedCoverImage: View {
             return
         }
 
+        image = nil
         let target = maxPixelSize
-        let loaded = await Task.detached(priority: .utility) {
-            Self.downsample(url: url, maxPixelSize: target)
-        }.value
+        let loaded = await PanelCoverLoader.shared.image(url: url, maxPixelSize: target, key: key)
 
         guard !Task.isCancelled else { return }
         if let loaded {
-            PanelCoverCache.shared.insert(loaded, for: key)
             image = loaded
+        } else {
+            image = nil
         }
     }
 
-    private static func downsample(url: URL, maxPixelSize: CGFloat) -> UIImage? {
+    nonisolated fileprivate static func downsample(url: URL, maxPixelSize: CGFloat) -> UIImage? {
         let options = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let source = CGImageSourceCreateWithURL(url as CFURL, options) else { return nil }
 
@@ -102,5 +124,36 @@ struct CachedCoverImage: View {
 
         guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, thumbnailOptions) else { return nil }
         return UIImage(cgImage: cgImage)
+    }
+}
+
+
+// Coalesce identical requests and bound simultaneous image decoding to two workers.
+actor PanelCoverLoader {
+    static let shared = PanelCoverLoader()
+    private let decodeQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 2
+        queue.qualityOfService = .utility
+        return queue
+    }()
+    private var inFlight: [String: Task<UIImage?, Never>] = [:]
+
+    func image(url: URL, maxPixelSize: CGFloat, key: String) async -> UIImage? {
+        if let cached = PanelCoverCache.shared.image(for: key) { return cached }
+        if let existing = inFlight[key] { return await existing.value }
+        let queue = decodeQueue
+        let task = Task.detached(priority: .utility) {
+            await withCheckedContinuation { (continuation: CheckedContinuation<UIImage?, Never>) in
+                queue.addOperation {
+                    continuation.resume(returning: CachedCoverImage.downsample(url: url, maxPixelSize: maxPixelSize))
+                }
+            }
+        }
+        inFlight[key] = task
+        let image = await task.value
+        if let image { PanelCoverCache.shared.insert(image, for: key) }
+        inFlight[key] = nil
+        return image
     }
 }

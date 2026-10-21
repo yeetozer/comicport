@@ -26,6 +26,7 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var smartSearchCacheReady: Bool = false
     @Published private(set) var guidedPanelModeEnabled: Bool = false
     @Published private(set) var readingJournalEntries: [ReadingJournalEntry] = []
+    @Published private(set) var bookHub = BookHubState()
     @Published private(set) var isBootstrapped: Bool = false
     @Published private(set) var bootstrapMessage: String = "ComicPort hazırlanıyor…"
     @Published private(set) var pendingQuickAction: PanelQuickAction?
@@ -39,6 +40,15 @@ final class LibraryStore: ObservableObject {
     @Published private(set) var syncLastRun: Date?
     @Published private(set) var sourceNotice: String?
     @Published private(set) var lastSessionSummary: ComicPortReadingSessionSummary?
+    @Published var activeReaderProfile: ComicPortReaderProfile = .mix {
+        didSet {
+            guard documentsDirectory == nil else { return }
+            UserDefaults.standard.set(
+                activeReaderProfile.rawValue,
+                forKey: readerProfileDefaultsKey
+            )
+        }
+    }
 
     private struct ActiveSession {
         let startedAt: Date
@@ -48,6 +58,7 @@ final class LibraryStore: ObservableObject {
     }
 
     private let fm = FileManager.default
+    private let documentsDirectory: URL?
     private let metadataName = "library.json"
     private let analyticsName = "analytics.json"
     private let achievementsName = "achievements.json"
@@ -63,6 +74,7 @@ final class LibraryStore: ObservableObject {
     private let smartCollectionsDefaultsKey = "ComicPort.stage18.smartCollections"
     private let sourceFoldersDefaultsKey = "ComicPort.stage18.sourceFolders"
     private let syncLocationDefaultsKey = "ComicPort.stage18.syncLocation"
+    private let readerProfileDefaultsKey = "ComicPort.reader.activeProfile"
     private let syncFileName = "ComicPort-Sync-v1.json"
 
     private var pendingLibrarySave: Task<Void, Never>?
@@ -78,13 +90,26 @@ final class LibraryStore: ObservableObject {
     private var recommendationCache: [ComicRecommendation] = []
     private var bootstrapStarted = false
 
-    init() {
+    init(documentsDirectory: URL? = nil) {
+        self.documentsDirectory = documentsDirectory
+        // An injected root isolates debug smoke tests from the user's library,
+        // source folders, sync configuration and persisted reader profile.
+        if documentsDirectory != nil {
+            activeReaderProfile = .books
+            return
+        }
         // Keep App initialization intentionally tiny. Disk enumeration, JSON decoding and
         // hundreds of file-existence checks are performed by bootstrap() after the first frame.
         guidedPanelModeEnabled = UserDefaults.standard.bool(forKey: guidedPanelModeKey)
         autoOpenNextIssue = UserDefaults.standard.bool(forKey: autoNextKey)
 
         let defaults = UserDefaults.standard
+
+        if let raw = defaults.string(forKey: readerProfileDefaultsKey),
+           let profile = ComicPortReaderProfile(rawValue: raw) {
+            activeReaderProfile = profile
+        }
+
         if let data = defaults.data(forKey: smartCollectionsDefaultsKey),
            let decoded = try? JSONDecoder().decode(
                 [ComicPortSmartCollection].self,
@@ -111,7 +136,7 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    var documentsURL: URL { fm.urls(for: .documentDirectory, in: .userDomainMask)[0] }
+    var documentsURL: URL { documentsDirectory ?? fm.urls(for: .documentDirectory, in: .userDomainMask)[0] }
     var booksURL: URL { documentsURL.appendingPathComponent("Books", isDirectory: true) }
     var coversURL: URL { documentsURL.appendingPathComponent("Covers", isDirectory: true) }
     var notesURL: URL { documentsURL.appendingPathComponent("Notes", isDirectory: true) }
@@ -127,6 +152,7 @@ final class LibraryStore: ObservableObject {
     private var storyArcsURL: URL { documentsURL.appendingPathComponent(storyArcsName) }
     private var textNotesURL: URL { documentsURL.appendingPathComponent(textNotesName) }
     private var savedPanelsURL: URL { documentsURL.appendingPathComponent(savedPanelsName) }
+    private var bookHubURL: URL { documentsURL.appendingPathComponent("book_hub.json") }
     private var readingJournalURL: URL { documentsURL.appendingPathComponent(readingJournalName) }
 
     func bootstrap() async {
@@ -151,7 +177,8 @@ final class LibraryStore: ObservableObject {
             storyArcs: storyArcsURL,
             textNotes: textNotesURL,
             savedPanels: savedPanelsURL,
-            readingJournal: readingJournalURL
+            readingJournal: readingJournalURL,
+            bookHub: bookHubURL
         )
 
         let loaded = await Task.detached(priority: .userInitiated) {
@@ -174,6 +201,7 @@ final class LibraryStore: ObservableObject {
         textNotes = loaded.textNotes
         savedPanels = loaded.savedPanels
         readingJournalEntries = loaded.readingJournal
+        bookHub = loaded.bookHub
         pencilAnnotationPageKeys = loaded.pencilAnnotationPageKeys
         smartSearchKnownIndexIDs = loaded.smartSearchKnownIndexIDs
 
@@ -182,6 +210,7 @@ final class LibraryStore: ObservableObject {
             scheduleLibrarySave()
         }
 
+        normalizeContentKinds()
         isBootstrapped = true
         bootstrapStarted = false
 
@@ -224,7 +253,7 @@ final class LibraryStore: ObservableObject {
     func handleIncomingURL(_ url: URL) {
         if url.isFileURL {
             let ext = url.pathExtension.lowercased()
-            guard ext == "pdf" ||
+            guard ext == "pdf" || ext == "epub" ||
                     ComicArchiveFormat.supportedExtensions.contains(ext) else {
                 importError = "ComicPort cannot open this file type."
                 return
@@ -462,6 +491,7 @@ final class LibraryStore: ObservableObject {
         let pageCount: Int
         let coverData: Data?
         let comicInfo: ComicInfoMetadata?
+        let bibliography: BookBibliography?
         let rightToLeft: Bool
 
         init(
@@ -473,7 +503,8 @@ final class LibraryStore: ObservableObject {
             pageCount: Int,
             coverData: Data?,
             comicInfo: ComicInfoMetadata?,
-            rightToLeft: Bool
+            rightToLeft: Bool,
+            bibliography: BookBibliography? = nil
         ) {
             self.temporaryID = temporaryID
             self.sourceExtension = sourceExtension
@@ -483,17 +514,20 @@ final class LibraryStore: ObservableObject {
             self.pageCount = pageCount
             self.coverData = coverData
             self.comicInfo = comicInfo
+            self.bibliography = bibliography
             self.rightToLeft = rightToLeft
         }
     }
 
     func importFile(_ source: URL) {
         let ext = source.pathExtension.lowercased()
-        guard ext == "pdf" || ComicArchiveFormat.supportedExtensions.contains(ext) else {
-            importError = "Supported formats: PDF, CBZ, CBR/RAR5, CB7/7z, CBT/TAR and ZIP."
+        guard ext == "pdf" || ext == "epub" || ComicArchiveFormat.supportedExtensions.contains(ext) else {
+            importError = "Supported formats: PDF, EPUB, CBZ, CBR/RAR5, CB7/7z, CBT/TAR and ZIP."
             return
         }
 
+        // Capture at request time: switching profiles during import cannot reclassify it.
+        let importProfile = activeReaderProfile
         importInProgressCount += 1
         Task { @MainActor [weak self] in
             guard let self else { return }
@@ -519,6 +553,7 @@ final class LibraryStore: ObservableObject {
                         var count = 0
                         var coverData: Data?
                         var comicInfo: ComicInfoMetadata?
+                        var bibliography: BookBibliography?
 
                         if ext == "pdf" {
                             let doc = PDFDocument(url: target)
@@ -529,6 +564,11 @@ final class LibraryStore: ObservableObject {
                                     for: .mediaBox
                                 ).jpegData(compressionQuality: 0.88)
                             }
+                        } else if ext == "epub" {
+                            let publication = try EPUBService.open(target)
+                            count = publication.chapters.count
+                            bibliography = publication.metadata
+                            if let cover = publication.coverURL { coverData = BookCoverPreparation.jpeg(at: cover) }
                         } else {
                             comicInfo = ComicInfoService.metadata(from: target)
                             let pages = try CBZService.extractImages(from: target)
@@ -549,11 +589,12 @@ final class LibraryStore: ObservableObject {
                             sourceExtension: ext,
                             targetURL: target,
                             fallbackTitle: fallbackTitle,
-                            resolvedTitle: comicInfo?.displayTitle(fallback: fallbackTitle) ?? fallbackTitle,
+                            resolvedTitle: bibliography?.title ?? comicInfo?.displayTitle(fallback: fallbackTitle) ?? fallbackTitle,
                             pageCount: count,
                             coverData: coverData,
                             comicInfo: comicInfo,
-                            rightToLeft: comicInfo?.isRightToLeft ?? false
+                            rightToLeft: comicInfo?.isRightToLeft ?? false,
+                            bibliography: bibliography
                         )
                     } catch {
                         try? fm.removeItem(at: target)
@@ -561,17 +602,17 @@ final class LibraryStore: ObservableObject {
                     }
                 }.value
 
-                try self.finishPreparedImport(prepared, coversDirectory: coversDirectory)
+                try self.finishPreparedImport(prepared, coversDirectory: coversDirectory, importProfile: importProfile)
             } catch {
                 self.importError = "Import failed: \(error.localizedDescription)"
             }
         }
     }
 
-    private func finishPreparedImport(_ prepared: PreparedComicImport, coversDirectory: URL) throws {
+    private func finishPreparedImport(_ prepared: PreparedComicImport, coversDirectory: URL, importProfile: ComicPortReaderProfile) throws {
         let id = prepared.temporaryID
         let ext = prepared.sourceExtension
-        let type: ComicType = ext == "pdf" ? .pdf : .cbz
+        let type: ComicType = ext == "pdf" ? .pdf : (ext == "epub" ? .epub : .cbz)
         let identity = Self.sourceIdentity(
             title: prepared.resolvedTitle,
             type: type,
@@ -615,6 +656,7 @@ final class LibraryStore: ObservableObject {
                 try? fm.removeItem(at: oldCover)
             }
             books[existingIndex].thumbnailFileName = nil
+            books[existingIndex].coverRevision &+= 1
 
             if let generatedCoverName {
                 let generatedCover = coversURL.appendingPathComponent(generatedCoverName)
@@ -633,9 +675,16 @@ final class LibraryStore: ObservableObject {
             books[existingIndex].pageCount = prepared.pageCount
             books[existingIndex].sourceIdentity = identity
             books[existingIndex].rightToLeft = prepared.rightToLeft || books[existingIndex].rightToLeft
+            if prepared.rightToLeft {
+                books[existingIndex].contentKind = .manga
+            }
             books[existingIndex].isInLibrary = true
             books[existingIndex].fileAvailable = true
             books[existingIndex].isArchived = false
+            if type == .epub {
+                books[existingIndex].contentKind = .book
+                if books[existingIndex].bookMetadata == nil { books[existingIndex].bookMetadata = prepared.bibliography }
+            }
 
             if let metadata = prepared.comicInfo {
                 saveImportedComicInfo(metadata, book: books[existingIndex])
@@ -661,7 +710,9 @@ final class LibraryStore: ObservableObject {
                 type: type,
                 pageCount: prepared.pageCount,
                 thumbnailFileName: generatedCoverName,
+                contentKind: type == .epub || importProfile == .books ? .book : (importProfile == .manga || prepared.rightToLeft ? .manga : .comic),
                 rightToLeft: prepared.rightToLeft,
+                bookMetadata: prepared.bibliography,
                 sourceIdentity: identity
             )
             books.insert(book, at: 0)
@@ -754,14 +805,20 @@ final class LibraryStore: ObservableObject {
 
     func updateProgress(id: UUID, page: Int) {
         guard let i = books.firstIndex(where: { $0.id == id }) else { return }
+        let wasCompleted = books[i].readingStatus == .completed
         let clamped = max(0, min(page, max(0, books[i].pageCount - 1)))
         if clamped != books[i].currentPage {
             registerPageChange(id: id, page: clamped)
         }
         books[i].currentPage = clamped
+        if books[i].type == .epub {
+            books[i].epubState?.scrollFraction = 0
+            books[i].readingStatus = .reading
+        }
         books[i].lastReadAt = .now
         if books[i].readingStatus == .toRead && clamped > 0 { books[i].readingStatus = .reading }
-        if books[i].pageCount > 0 && clamped >= books[i].pageCount - 1 { books[i].readingStatus = .completed }
+        if books[i].type != .epub && books[i].pageCount > 0 && clamped >= books[i].pageCount - 1 { books[i].readingStatus = .completed }
+        if !wasCompleted && books[i].readingStatus == .completed { recordBookHubCompletion(books[i]) }
         scheduleLibrarySave()
     }
 
@@ -794,19 +851,33 @@ final class LibraryStore: ObservableObject {
         )
         flushPendingLibrarySave()
         saveAnalytics()
+        recordBookHubGoalMilestones()
         evaluateAchievements()
     }
 
     private func registerPageChange(id: UUID, page: Int) {
         guard var session = activeSessions[id], page != session.lastPage else { return }
-        session.pagesRead += 1
+        if books.first(where: { $0.id == id })?.type != .epub { session.pagesRead += 1 }
         session.lastPage = page
         activeSessions[id] = session
     }
 
+    func updateEPUBState(id: UUID, chapter: Int, state: EPUBReaderState) {
+        guard let index = books.firstIndex(where: { $0.id == id }), books[index].type == .epub else { return }
+        let highlightsChanged = books[index].epubState?.highlights != state.highlights
+        books[index].currentPage = max(0, min(chapter, books[index].pageCount - 1))
+        books[index].epubState = state
+        books[index].lastReadAt = .now
+        if books[index].readingStatus == .toRead { books[index].readingStatus = .reading }
+        scheduleLibrarySave()
+        if highlightsChanged { evaluateAchievements() }
+    }
+
     func setStatus(id: UUID, status: ReadingStatus) {
         guard let i = books.firstIndex(where: { $0.id == id }) else { return }
+        let newlyCompleted = books[i].readingStatus != .completed && status == .completed
         books[i].readingStatus = status
+        if newlyCompleted { recordBookHubCompletion(books[i]) }
         save()
         evaluateAchievements()
     }
@@ -854,10 +925,51 @@ final class LibraryStore: ObservableObject {
         return try? JSONDecoder().decode(OfflineComicInfo.self, from: data)
     }
 
-    func saveOfflineInfo(_ info: OfflineComicInfo, bookID: UUID) {
+    func saveOfflineInfo(_ incomingInfo: OfflineComicInfo, bookID: UUID, manuallyEdited: Bool = false) {
+        var info = incomingInfo
+        if !manuallyEdited, let metadata = books.first(where: { $0.id == bookID && $0.contentKind == .book })?.bookMetadata {
+            if metadata.sources["title"] == .manual { info.displayTitle = metadata.title ?? info.displayTitle; info.titleSource = .manual }
+            if metadata.sources["authors"] == .manual { info.creators = metadata.authors; info.authorsSource = .manual }
+            if metadata.sources["publisher"] == .manual { info.publisher = metadata.publisher }
+            if metadata.sources["publicationYear"] == .manual { info.year = metadata.publicationYear }
+            if metadata.sources["summary"] == .manual { info.summary = metadata.summary ?? "" }
+            if metadata.sources["language"] == .manual { info.languageISO = metadata.language }
+        }
         do {
             let data = try JSONEncoder().encode(info)
             try data.write(to: offlineInfoURL(bookID: bookID), options: .atomic)
+            if let index = books.firstIndex(where: { $0.id == bookID }), books[index].contentKind == .book {
+                var metadata = books[index].bookMetadata ?? BookBibliography()
+                let embedded = info.comicInfoPresent == true || info.fileType == "EPUB"
+                // Manual fields survive re-analysis; analysis never renames the library entry.
+                if manuallyEdited || metadata.sources["title"] != .manual && metadata.sources["title"] != .online {
+                    metadata.title = info.displayTitle
+                    metadata.sources["title"] = manuallyEdited ? .manual : (info.titleSource ?? .inferred)
+                }
+                if manuallyEdited || metadata.sources["authors"] != .manual && metadata.sources["authors"] != .online {
+                    metadata.authors = info.creators
+                    metadata.sources["authors"] = manuallyEdited ? .manual : (info.authorsSource ?? .inferred)
+                }
+                if manuallyEdited || metadata.sources["publisher"] != .manual && metadata.sources["publisher"] != .online {
+                    metadata.publisher = info.publisher
+                    metadata.sources["publisher"] = manuallyEdited ? .manual : (embedded ? .embedded : .inferred)
+                }
+                if metadata.sources["language"] != .manual && metadata.sources["language"] != .online {
+                    metadata.language = info.languageISO
+                    metadata.sources["language"] = .embedded
+                }
+                if manuallyEdited || metadata.sources["publicationYear"] != .manual && metadata.sources["publicationYear"] != .online {
+                    metadata.publicationYear = info.year
+                    metadata.sources["publicationYear"] = manuallyEdited ? .manual : (embedded ? .embedded : .filename)
+                }
+                if manuallyEdited || metadata.sources["summary"] != .manual && metadata.sources["summary"] != .online {
+                    metadata.summary = info.summary
+                    metadata.sources["summary"] = manuallyEdited ? .manual : (embedded ? .embedded : .inferred)
+                }
+                metadata.analyzedAt = info.analyzedAt
+                books[index].bookMetadata = metadata
+                save()
+            }
         } catch {
             importError = "Could not save offline book info: \(error.localizedDescription)"
         }
@@ -1315,6 +1427,94 @@ final class LibraryStore: ObservableObject {
             errorPrefix: "Could not save reading statistics"
         )
         scheduleComicPortSyncExport()
+    }
+
+
+
+    // MARK: - Reader Profiles
+
+    func setReaderProfile(_ profile: ComicPortReaderProfile) {
+        guard activeReaderProfile != profile else { return }
+        activeReaderProfile = profile
+    }
+
+    func profileFilter(_ source: [ComicBook]) -> [ComicBook] {
+        switch activeReaderProfile {
+        case .mix:
+            return source
+        case .comics:
+            return source.filter { $0.contentKind == .comic }
+        case .manga:
+            return source.filter { $0.contentKind == .manga }
+        case .books:
+            return source.filter { $0.contentKind == .book }
+        }
+    }
+
+    var profileLibraryBooks: [ComicBook] {
+        profileFilter(libraryBooks)
+    }
+
+    var profileRecentlyAdded: [ComicBook] {
+        Array(
+            profileFilter(libraryBooks)
+                .sorted { $0.addedAt > $1.addedAt }
+                .prefix(12)
+        )
+    }
+
+    var profileRecentlyRead: [ComicBook] {
+        Array(
+            profileFilter(libraryBooks)
+                .filter { $0.lastReadAt != nil }
+                .sorted {
+                    ($0.lastReadAt ?? .distantPast) >
+                    ($1.lastReadAt ?? .distantPast)
+                }
+                .prefix(12)
+        )
+    }
+
+    func profileBooks(with status: ReadingStatus) -> [ComicBook] {
+        profileFilter(libraryBooks)
+            .filter { $0.readingStatus == status }
+            .sorted {
+                ($0.lastReadAt ?? $0.addedAt) >
+                ($1.lastReadAt ?? $1.addedAt)
+            }
+    }
+
+    func setContentKind(
+        id: UUID,
+        kind: ComicPortContentKind
+    ) {
+        guard let index = books.firstIndex(where: { $0.id == id }) else {
+            return
+        }
+
+        books[index].contentKind = kind
+
+        if kind == .manga {
+            books[index].rightToLeft = true
+        }
+
+        save()
+    }
+
+    private func normalizeContentKinds() {
+        var changed = false
+
+        for index in books.indices {
+            if books[index].contentKind == .comic,
+               books[index].rightToLeft {
+                books[index].contentKind = .manga
+                changed = true
+            }
+        }
+
+        if changed {
+            scheduleLibrarySave()
+        }
     }
 
 
@@ -1969,7 +2169,7 @@ final class LibraryStore: ObservableObject {
     // MARK: - Achievements
 
     func achievementProgress(for achievement: AchievementDefinition) -> Double {
-        achievementSnapshot().value(for: achievement.metric)
+        achievementSnapshot(for: achievement.domain).value(for: achievement.metric)
     }
 
     private func loadAchievements() {
@@ -1987,8 +2187,8 @@ final class LibraryStore: ObservableObject {
             evaluateAchievements()
             return
         }
-        let snapshot = achievementSnapshot()
-        for achievement in AchievementCatalog.all where snapshot.value(for: achievement.metric) >= achievement.target {
+        let snapshots = Dictionary(uniqueKeysWithValues: AchievementDomain.allCases.map { ($0, achievementSnapshot(for: $0)) })
+        for achievement in AchievementCatalog.all where snapshots[achievement.domain]!.value(for: achievement.metric) >= achievement.target {
             achievementProfile.unlockedIDs.insert(achievement.id)
             achievementProfile.unlockedAt[achievement.id] = .now
         }
@@ -1997,10 +2197,10 @@ final class LibraryStore: ObservableObject {
     }
 
     func evaluateAchievements() {
-        let snapshot = achievementSnapshot()
+        let snapshots = Dictionary(uniqueKeysWithValues: AchievementDomain.allCases.map { ($0, achievementSnapshot(for: $0)) })
         var newlyUnlocked: [AchievementDefinition] = []
         for achievement in AchievementCatalog.all where !achievementProfile.unlockedIDs.contains(achievement.id) {
-            if snapshot.value(for: achievement.metric) >= achievement.target {
+            if snapshots[achievement.domain]!.value(for: achievement.metric) >= achievement.target {
                 achievementProfile.unlockedIDs.insert(achievement.id)
                 achievementProfile.unlockedAt[achievement.id] = .now
                 newlyUnlocked.append(achievement)
@@ -2027,15 +2227,22 @@ final class LibraryStore: ObservableObject {
         }
     }
 
-    private func achievementSnapshot() -> AchievementSnapshot {
-        let totalPages = analytics.history.reduce(0) { $0 + max(0, $1.pagesRead) }
-        let totalSeconds = analytics.history.reduce(0.0) { $0 + max(0, $1.seconds) }
+    func achievementSnapshot(for domain: AchievementDomain) -> AchievementSnapshot {
+        let totals = AchievementReadingTotals(books: books, history: analytics.history, domain: domain, dailyGoal: analytics.dailyGoalPages)
+        let books = self.books.filter { domain.includes($0) }
+        let ids = Set(books.map(\.id))
+        let idStrings = Set(ids.map(\.uuidString))
+        let textKeys = Set(textNotes.filter { ids.contains($0.bookID) }.map { "\($0.bookID.uuidString)-\($0.page)" })
+        let highlightKeys = Set(books.flatMap { book in (book.epubState?.highlights ?? []).map { "\(book.id.uuidString)-\($0.chapter)" } })
+        let annotatedKeys = textKeys.union(highlightKeys).union(pencilAnnotationPageKeys.filter { idStrings.contains(String($0.prefix(36))) })
+        let totalPages = totals.pages
+        let totalSeconds = totals.seconds
         let completed = books.filter { $0.readingStatus == .completed }
         let favoriteCount = books.filter { $0.favorite }.count
         let ratedCount = books.filter { $0.rating > 0 }.count
-        let goalDays = analytics.daily.values.filter { $0.pages >= analytics.dailyGoalPages }.count
-        let maxDayPages = analytics.daily.values.map(\.pages).max() ?? 0
-        let streak = currentReadingStreak()
+        let goalDays = totals.goalDays
+        let maxDayPages = totals.maxDayPages
+        let streak = totals.streak
         let omnibus = completed.filter { $0.pageCount >= 500 }.count
 
         var characters: [String: Int] = [:]
@@ -2043,7 +2250,7 @@ final class LibraryStore: ObservableObject {
         let characterNames = ["Batman","Nightwing","Superman","Wonder Woman","Flash","Green Lantern","Aquaman","Harley Quinn","Joker","Robin","Spider-Man","Daredevil","Wolverine","Thor","Hulk","Iron Man","Captain America","Black Panther","Deadpool","Doctor Strange"]
         let teamNames = ["Justice League","Avengers","X-Men","Fantastic Four","Teen Titans","Bat-Family","Guardians of the Galaxy","Suicide Squad","Justice Society","Defenders"]
 
-        for book in completed {
+        for book in completed where domain == .comics {
             let match = LocalComicDatabase.bestMatch(title: book.title)
             let detectedCharacters = Set((match?.record.characters ?? []) + characterNames.filter { Self.normalizedContains(book.title, $0) })
             for name in characterNames where detectedCharacters.contains(where: { Self.normalizedContains($0, name) || Self.normalizedContains(name, $0) }) {
@@ -2063,11 +2270,12 @@ final class LibraryStore: ObservableObject {
             }
         }
 
+        let milestones = BookHubMilestones(books: books, collections: bookHub.collections)
         return AchievementSnapshot(
             totalPages: totalPages,
             totalSeconds: totalSeconds,
             completedBooks: completed.count,
-            libraryBooks: libraryBooks.count,
+            libraryBooks: books.filter { $0.isInLibrary && !$0.isArchived }.count,
             favorites: favoriteCount,
             ratedBooks: ratedCount,
             currentStreak: streak,
@@ -2076,10 +2284,15 @@ final class LibraryStore: ObservableObject {
             omnibusCompleted: omnibus,
             characterCompleted: characters,
             teamCompleted: teams,
-            maxCompletedInSeries: SeriesService.maxCompletedIssuesInOneSeries(books: books),
-            completedStoryArcs: storyArcs.filter { storyArcProgress($0) == 100 }.count,
-            annotatedPages: annotationPageCount,
-            savedPanels: savedPanels.count
+            maxCompletedInSeries: domain == .comics ? SeriesService.maxCompletedIssuesInOneSeries(books: books) : 0,
+            completedStoryArcs: domain == .comics ? storyArcs.filter { storyArcProgress($0) == 100 }.count : 0,
+            annotatedPages: annotatedKeys.count,
+            savedPanels: savedPanels.filter { ids.contains($0.bookID) }.count,
+            classicStages: domain == .books ? ClassicReadingAchievements.stages(books: books, history: analytics.history) : [:],
+            bookDailyGoals: domain == .books ? bookHub.reachedDailyGoals.count : 0,
+            bookAnnualGoals: domain == .books ? bookHub.reachedAnnualGoals.count : 0,
+            bookAuthors: domain == .books ? milestones.completedAuthors : 0,
+            bookCollections: domain == .books ? milestones.completedCollections : 0
         )
     }
 
@@ -2135,11 +2348,11 @@ final class LibraryStore: ObservableObject {
 
 extension LibraryStore {
     var smartSearchIndexedBookCount: Int {
-        smartSearchCacheReady ? smartSearchIndexes.count : smartSearchKnownIndexIDs.count
+        profileFilter(books).filter { smartSearchIsIndexed($0.id) }.count
     }
 
     var smartSearchIndexedPageCount: Int {
-        smartSearchIndexes.values.reduce(0) { $0 + $1.searchablePageCount }
+        profileFilter(books).reduce(0) { $0 + (smartSearchIndexes[$1.id]?.searchablePageCount ?? 0) }
     }
 
     func smartSearchIsIndexed(_ bookID: UUID) -> Bool {
@@ -2152,13 +2365,13 @@ extension LibraryStore {
     func smartSearch(query: String) -> [SmartSearchHit] {
         SmartSearchDiskService.search(
             query: query,
-            books: books.map { SmartSearchBookRecord(id: $0.id, title: $0.title) },
+            books: profileFilter(books).map { SmartSearchBookRecord(id: $0.id, title: $0.title) },
             indexes: smartSearchIndexes
         )
     }
 
     func smartSearchAsync(query: String) async -> [SmartSearchHit] {
-        let bookRecords = books.map { SmartSearchBookRecord(id: $0.id, title: $0.title) }
+        let bookRecords = profileFilter(books).map { SmartSearchBookRecord(id: $0.id, title: $0.title) }
         let indexSnapshot = smartSearchIndexes
         return await Task.detached(priority: .userInitiated) {
             SmartSearchDiskService.search(
@@ -2207,7 +2420,8 @@ extension LibraryStore {
             await self.loadSmartSearchCacheIfNeeded()
             guard !Task.isCancelled else { return }
 
-            let available = self.books.filter {
+            let source = bookID == nil ? self.profileFilter(self.books) : self.books
+            let available = source.filter {
                 $0.fileAvailable && (bookID == nil || $0.id == bookID)
             }
 
@@ -2292,19 +2506,9 @@ extension LibraryStore {
         smartSearchProgress = nil
     }
 
-    func clearAllSmartSearchIndexes() {
+    func clearProfileSmartSearchIndexes() {
         cancelSmartSearchIndexing()
-        let directory = smartSearchURL
-
-        if let urls = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            for url in urls where url.pathExtension.lowercased() == "json" {
-                try? fm.removeItem(at: url)
-            }
-        }
-
-        smartSearchIndexes.removeAll()
-        smartSearchKnownIndexIDs.removeAll()
-        smartSearchCacheReady = true
+        for book in profileFilter(books) { deleteSmartSearchIndex(for: book.id) }
         smartSearchLastError = nil
         smartSearchRevision &+= 1
     }
@@ -2401,6 +2605,7 @@ extension LibraryStore {
             savedPanels: savedPanels,
             readingJournal: readingJournalEntries,
             smartCollections: smartCollections,
+            bookHub: bookHub,
             pencilDrawings: assets.0,
             panelImages: assets.1,
             bookInfoFiles: assets.2,
@@ -2455,6 +2660,7 @@ extension LibraryStore {
                     currentPage: min(incoming.currentPage, max(0, localPageCount - 1)),
                     addedAt: min(current.addedAt, incoming.addedAt),
                     thumbnailFileName: localExists ? current.thumbnailFileName : incoming.thumbnailFileName,
+                    contentKind: incoming.contentKind,
                     rightToLeft: incoming.rightToLeft,
                     readingStatus: incoming.readingStatus,
                     favorite: incoming.favorite || current.favorite,
@@ -2482,6 +2688,7 @@ extension LibraryStore {
                         currentPage: min(incoming.currentPage, max(0, incoming.pageCount - 1)),
                         addedAt: incoming.addedAt,
                         thumbnailFileName: incoming.thumbnailFileName,
+                        contentKind: incoming.contentKind,
                         rightToLeft: incoming.rightToLeft,
                         readingStatus: incoming.readingStatus,
                         favorite: incoming.favorite,
@@ -2638,6 +2845,11 @@ extension LibraryStore {
             persistSmartCollections()
         }
 
+        if let incoming = payload.bookHub {
+            bookHub = bookHub.merging(incoming, bookIDMap: idMap)
+            saveBookHubState()
+        }
+
         rebuildPencilAnnotationIndex()
         annotationRevision &+= 1
 
@@ -2691,6 +2903,32 @@ extension LibraryStore {
     func clearSourceNotice() { sourceNotice = nil }
     func clearSessionSummary() { lastSessionSummary = nil }
 
+    func applyBookSuggestion(bookID: UUID, metadata: BookBibliography) -> String {
+        guard let index = books.firstIndex(where: { $0.id == bookID }), books[index].contentKind == .book else { return "Kitap bulunamadı." }
+        if let current = books[index].bookMetadata?.isbn.flatMap(BookISBN.normalized), current != metadata.isbn { return "Önerinin ISBN numarası kayıtlı kitapla eşleşmiyor." }
+        let current = books[index].bookMetadata ?? BookBibliography()
+        let updated = current.fillingMissingFields(from: metadata)
+        guard current != updated else { return "Tamamlanacak eksik bilgi yok. Mevcut bilgiler korundu." }
+        books[index].bookMetadata = updated
+        save()
+        return "Eksik bilgiler tamamlandı."
+    }
+
+    func applyBookCoverSuggestion(bookID: UUID, data: Data, isbn: String) async -> String {
+        guard let book = books.first(where: { $0.id == bookID }), book.contentKind == .book else { return "Kitap bulunamadı." }
+        if let current = book.bookMetadata?.isbn.flatMap(BookISBN.normalized), current != isbn { return "Önerinin ISBN numarası kayıtlı kitapla eşleşmiyor." }
+        let name = "\(bookID.uuidString).jpg"
+        let target = coversURL.appendingPathComponent(name)
+        do {
+            try await Task.detached(priority: .utility) { try data.write(to: target, options: .atomic) }.value
+            guard let index = books.firstIndex(where: { $0.id == bookID }) else { return "Kitap bulunamadı." }
+            books[index].thumbnailFileName = name
+            books[index].coverRevision &+= 1
+            save()
+            return "Kapak kaydedildi."
+        } catch { return "Kapak kaydedilemedi: \(error.localizedDescription)" }
+    }
+
     func setCover(bookID: UUID, page: Int) async -> Bool {
         guard let index = books.firstIndex(where: { $0.id == bookID }) else { return false }
         let book = books[index]
@@ -2709,6 +2947,7 @@ extension LibraryStore {
                 try data.write(to: target, options: .atomic)
             }.value
             books[index].thumbnailFileName = name
+            books[index].coverRevision &+= 1
             save()
             return true
         } catch {
@@ -2726,13 +2965,32 @@ extension LibraryStore {
         publisher: String,
         creators: String,
         summary: String,
-        writeComicInfo: Bool
+        writeComicInfo: Bool,
+        isbn: String? = nil,
+        language: String? = nil
     ) async -> String {
         guard let index = books.firstIndex(where: { $0.id == bookID }) else {
             return "Book not found."
         }
 
         let cleanTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if books[index].contentKind == .book {
+            guard !cleanTitle.isEmpty else { return "Kitap adı boş olamaz." }
+            if let isbn, !isbn.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               BookISBN.normalized(isbn) == nil {
+                return "ISBN geçerli değil. ISBN-10 veya ISBN-13 numarasını kontrol et."
+            }
+            var bibliography = books[index].bookMetadata ?? BookBibliography()
+            if let isbn {
+                bibliography.isbn = BookISBN.normalized(isbn)
+                bibliography.sources["isbn"] = .manual
+            }
+            if let language {
+                bibliography.language = language.nilIfBlank
+                bibliography.sources["language"] = .manual
+            }
+            books[index].bookMetadata = bibliography
+        }
         if !cleanTitle.isEmpty { books[index].title = cleanTitle }
 
         let creatorList = creators
@@ -2754,7 +3012,7 @@ extension LibraryStore {
             embeddedAuthor: previous?.embeddedAuthor,
             embeddedSubject: previous?.embeddedSubject,
             detectedText: previous?.detectedText ?? "",
-            summary: summary.nilIfBlank ?? previous?.summary ?? "",
+            summary: books[index].contentKind == .book ? summary.trimmingCharacters(in: .whitespacesAndNewlines) : (summary.nilIfBlank ?? previous?.summary ?? ""),
             confidenceNote: "Edited locally by the ComicPort user.",
             databaseMatch: previous?.databaseMatch,
             databaseConfidence: previous?.databaseConfidence,
@@ -2764,11 +3022,13 @@ extension LibraryStore {
             imprint: previous?.imprint,
             characters: previous?.characters,
             genres: previous?.genres,
-            languageISO: previous?.languageISO,
+            languageISO: language == nil ? previous?.languageISO : language?.nilIfBlank,
             storyArc: previous?.storyArc,
-            format: previous?.format
+            format: previous?.format,
+            titleSource: .manual,
+            authorsSource: .manual
         )
-        saveOfflineInfo(info, bookID: bookID)
+        saveOfflineInfo(info, bookID: bookID, manuallyEdited: true)
         books[index].sourceIdentity = Self.sourceIdentity(
             title: books[index].title,
             type: books[index].type,
@@ -3232,7 +3492,7 @@ private enum ComicPortSourceScanner {
             if Task.isCancelled { break }
 
             let ext = url.pathExtension.lowercased()
-            guard ext == "pdf" ||
+            guard ext == "pdf" || ext == "epub" ||
                     ComicArchiveFormat.supportedExtensions.contains(ext) else {
                 continue
             }
@@ -3339,3 +3599,94 @@ private struct ComicPortSyncSnapshot: Codable, Hashable, Sendable {
     }
 }
 
+
+extension LibraryStore {
+    var bookHubGoalProgress: BookHubGoalProgress {
+        let journal = readingJournalEntries.map { BookHubCompletion(bookID: $0.bookID, date: $0.completedAt) }
+        return BookHubGoalProgress(books: books, history: analytics.history, completions: bookHub.completions + journal)
+    }
+
+    func setBookHubGoals(dailyMinutes: Int, annualBooks: Int, enabled: Bool) {
+        bookHub.goals = BookHubGoals(enabled: enabled, dailyMinutes: max(1, min(240, dailyMinutes)), annualBooks: max(1, min(1000, annualBooks)))
+        recordBookHubGoalMilestones()
+        saveBookHubState()
+        evaluateAchievements()
+    }
+
+    private func recordBookHubCompletion(_ book: ComicBook) {
+        guard book.contentKind == .book else { return }
+        let today = Calendar.current.startOfDay(for: .now)
+        if !bookHub.completions.contains(where: { $0.bookID == book.id && Calendar.current.isDate($0.date, inSameDayAs: today) }) {
+            bookHub.completions.append(BookHubCompletion(bookID: book.id, date: .now))
+            recordBookHubGoalMilestones()
+            saveBookHubState()
+        }
+    }
+
+    private func recordBookHubGoalMilestones() {
+        guard bookHub.goals.enabled else { return }
+        let progress = bookHubGoalProgress
+        if progress.todaySeconds >= Double(max(1, bookHub.goals.dailyMinutes)) * 60 {
+            bookHub.reachedDailyGoals.insert(PanelDayKey.string(.now))
+        }
+        if progress.completedThisYear >= max(1, bookHub.goals.annualBooks) {
+            bookHub.reachedAnnualGoals.insert(progress.year)
+        }
+        saveBookHubState()
+    }
+
+    private func saveBookHubState() {
+        persistInBackground(bookHub, to: bookHubURL, errorPrefix: "Book Hub bilgileri kaydedilemedi")
+    }
+
+    func saveBookHubCollection(id: UUID = UUID(), name: String, bookIDs: Set<UUID>) {
+        let name = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(80))
+        guard !name.isEmpty else { return }
+        let validIDs = Set(books.filter { $0.contentKind == .book }.map(\.id))
+        let collection = BookHubCollection(id: id, name: name, bookIDs: bookIDs.intersection(validIDs))
+        if let index = bookHub.collections.firstIndex(where: { $0.id == id }) { bookHub.collections[index] = collection }
+        else { bookHub.collections.append(collection) }
+        saveBookHubState()
+        evaluateAchievements()
+    }
+
+    func removeBookHubCollection(_ id: UUID) {
+        bookHub.collections.removeAll { $0.id == id }
+        saveBookHubState()
+    }
+
+    func setBookHubExcerptPosition(bookID: UUID, page: Int) {
+        guard let index = books.firstIndex(where: { $0.id == bookID && $0.contentKind == .book }) else { return }
+        books[index].currentPage = max(0, min(page, max(0, books[index].pageCount - 1)))
+        books[index].epubState?.scrollFraction = 0
+        scheduleLibrarySave()
+    }
+
+    func removeBookHubHighlight(bookID: UUID, highlightID: UUID) {
+        guard let index = books.firstIndex(where: { $0.id == bookID && $0.contentKind == .book }), var state = books[index].epubState else { return }
+        state.highlights.removeAll { $0.id == highlightID }
+        books[index].epubState = state
+        scheduleLibrarySave()
+    }
+}
+
+extension LibraryStore {
+    var bookHubExcerpts: [BookHubExcerpt] {
+        let books = self.books.filter { $0.contentKind == .book }
+        let map = Dictionary(uniqueKeysWithValues: books.map { ($0.id, $0) })
+        var entries = textNotes.compactMap { note -> BookHubExcerpt? in
+            guard let book = map[note.bookID] else { return nil }
+            return BookHubExcerpt(id: "note:" + note.id.uuidString, bookID: book.id, title: book.title, authors: book.bookMetadata?.authors ?? [], page: note.page, isChapter: book.type == .epub, text: note.text, isHighlight: false)
+        }
+        for book in books {
+            entries += (book.epubState?.highlights ?? []).map {
+                BookHubExcerpt(id: "highlight:" + $0.id.uuidString, bookID: book.id, title: book.title, authors: book.bookMetadata?.authors ?? [], page: $0.chapter, isChapter: true, text: $0.quote, isHighlight: true)
+            }
+        }
+        return entries.sorted { a, b in
+            if a.title != b.title { return a.title.localizedStandardCompare(b.title) == .orderedAscending }
+            if a.page != b.page { return a.page < b.page }
+            return a.id < b.id
+        }
+    }
+}

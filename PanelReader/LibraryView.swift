@@ -45,7 +45,7 @@ struct LibraryView: View {
         }
         .dropDestination(for: URL.self) { urls, _ in
             let comics = urls.filter { url in
-                url.pathExtension.lowercased() == "pdf" || ComicArchiveFormat.supports(url)
+                ["pdf", "epub"].contains(url.pathExtension.lowercased()) || ComicArchiveFormat.supports(url)
             }
             comics.forEach(store.importFile)
             return !comics.isEmpty
@@ -61,7 +61,7 @@ struct LibraryView: View {
                     .stroke(accentColor, style: StrokeStyle(lineWidth: 3, dash: [9, 6]))
                     .padding(14)
                     .overlay {
-                        Label("Çizgi romanları ComicPort'a bırak", systemImage: "square.and.arrow.down")
+                        Label(store.activeReaderProfile == .books ? "Kitapları Book Hub'a bırak" : "Çizgi romanları ComicPort'a bırak", systemImage: "square.and.arrow.down")
                             .font(.title3.bold())
                             .padding(.horizontal, 18)
                             .padding(.vertical, 12)

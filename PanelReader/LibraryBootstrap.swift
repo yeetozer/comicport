@@ -19,6 +19,7 @@ struct LibraryBootstrapPaths: Sendable {
     let textNotes: URL
     let savedPanels: URL
     let readingJournal: URL
+    let bookHub: URL
 }
 
 final class LibraryBootstrapResult: @unchecked Sendable {
@@ -31,6 +32,7 @@ final class LibraryBootstrapResult: @unchecked Sendable {
     var textNotes: [PageTextNote] = []
     var savedPanels: [SavedPanel] = []
     var readingJournal: [ReadingJournalEntry] = []
+    var bookHub = BookHubState()
     var pencilAnnotationPageKeys: Set<String> = []
     var smartSearchKnownIndexIDs: Set<UUID> = []
     var libraryMetadataChanged = false
@@ -49,13 +51,22 @@ enum LibraryBootstrapLoader {
             try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         }
 
-        result.books = decode([ComicBook].self, from: paths.metadata) ?? []
+        let storedBooks = decode([ComicBook].self, from: paths.metadata)
+        result.books = storedBooks ?? []
+        // A corrupt existing library must never be replaced with starter records.
+        if storedBooks != nil || !fm.fileExists(atPath: paths.metadata.path),
+           let resources = BundledClassics.resourceDirectory,
+           fm.fileExists(atPath: resources.appendingPathComponent("catalog.json").path) {
+            do { result.books = try BundledClassics.install(in: paths.documents, existing: result.books, resources: resources) }
+            catch { NSLog("Book Hub starter collection could not be installed: %@", error.localizedDescription) }
+        }
         result.analytics = decode(ReadingAnalytics.self, from: paths.analytics) ?? ReadingAnalytics()
         result.achievementProfile = decode(AchievementProfile.self, from: paths.achievements) ?? AchievementProfile()
         result.readerSettingsByBook = decode([String: ReaderSettings].self, from: paths.readerSettings) ?? [:]
         result.defaultReaderSettings = decode(ReaderSettings.self, from: paths.defaultReaderSettings) ?? ReaderSettings()
         result.storyArcs = decode([StoryArc].self, from: paths.storyArcs) ?? []
         result.textNotes = decode([PageTextNote].self, from: paths.textNotes) ?? []
+        result.bookHub = decode(BookHubState.self, from: paths.bookHub) ?? BookHubState()
         result.readingJournal = decode([ReadingJournalEntry].self, from: paths.readingJournal) ?? []
 
         let panelMetadata = decode([SavedPanel].self, from: paths.savedPanels) ?? []

@@ -4,34 +4,51 @@ import UIKit
 struct AchievementsView: View {
     @EnvironmentObject var store: LibraryStore
     @State private var category: AchievementCategory?
+    @State private var domain: AchievementDomain = .books
+
+    private var domainDefinitions: [AchievementDefinition] {
+        AchievementCatalog.all.filter { $0.domain == domain }
+    }
 
     private var definitions: [AchievementDefinition] {
-        AchievementCatalog.all.filter { category == nil || $0.category == category }
+        domainDefinitions.filter { category == nil || $0.category == category }
     }
 
     var body: some View {
+        let snapshot = store.achievementSnapshot(for: domain)
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
+                    Picker("Başarım türü", selection: $domain) {
+                        ForEach(AchievementDomain.allCases) { Text($0.rawValue).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
                     profileCard
                     categoryPicker
                     LazyVStack(spacing: 12) {
                         ForEach(definitions) { achievement in
-                            AchievementRow(achievement: achievement)
+                            AchievementRow(achievement: achievement, progress: snapshot.value(for: achievement.metric))
                         }
                     }
                 }
                 .padding()
             }
-            .navigationTitle("Achievements")
+            .bookHubSurface(when: domain == .books)
+            .comicHubSurface(when: domain == .comics && store.activeReaderProfile == .comics)
+            .navigationTitle("Başarımlar")
         }
+        .onAppear {
+            domain = store.activeReaderProfile == .books ? .books : .comics
+            store.evaluateAchievements()
+        }
+        .onChange(of: domain) { _, _ in category = nil }
     }
 
     private var profileCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("LEVEL \(store.achievementProfile.level)").font(.caption.bold()).foregroundStyle(.secondary)
+                    Text("SEVİYE \(store.achievementProfile.level)").font(.caption.bold()).foregroundStyle(.secondary)
                     Text("\(store.achievementProfile.totalXP) XP").font(.largeTitle.bold())
                 }
                 Spacer()
@@ -42,21 +59,26 @@ struct AchievementsView: View {
                 .frame(width: 72, height: 72)
             }
             ProgressView(value: Double(store.achievementProfile.xpIntoLevel), total: Double(store.achievementProfile.xpForNextLevel))
-            Text("\(store.achievementProfile.unlockedIDs.count) / \(AchievementCatalog.all.count) unlocked")
+            Text("\(domainDefinitions.filter { store.achievementProfile.unlockedIDs.contains($0.id) }.count) / \(domainDefinitions.count) \(domain == .books ? "kitap" : "çizgi roman") başarımı kazanıldı")
                 .font(.subheadline).foregroundStyle(.secondary)
+            Text("Seviye ve XP tüm başarımların toplamıdır.").font(.caption).foregroundStyle(.secondary)
         }
         .padding(18)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22))
+        .background {
+            if domain == .books { RoundedRectangle(cornerRadius: 22).fill(BookHubPalette.surface) }
+            else if store.activeReaderProfile == .comics { RoundedRectangle(cornerRadius: 22).fill(ComicHubPalette.surface) }
+            else { RoundedRectangle(cornerRadius: 22).fill(.thinMaterial) }
+        }
     }
 
     private var categoryPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack {
-                Button("All") { category = nil }
+                Button("Tümü") { category = nil }
                     .buttonStyle(.borderedProminent)
                     .tint(category == nil ? .accentColor : .gray.opacity(0.35))
-                ForEach(AchievementCategory.allCases) { item in
-                    Button(item.rawValue) { category = item }
+                ForEach(AchievementCategory.allCases.filter { item in domainDefinitions.contains { $0.category == item } }) { item in
+                    Button(item.label) { category = item }
                         .buttonStyle(.borderedProminent)
                         .tint(category == item ? .accentColor : .gray.opacity(0.35))
                 }
@@ -68,9 +90,14 @@ struct AchievementsView: View {
 private struct AchievementRow: View {
     @EnvironmentObject var store: LibraryStore
     let achievement: AchievementDefinition
+    let progress: Double
 
     private var unlocked: Bool { store.achievementProfile.unlockedIDs.contains(achievement.id) }
-    private var progress: Double { store.achievementProgress(for: achievement) }
+
+    private var isClassicAward: Bool {
+        if case .classicStage = achievement.metric { return true }
+        return false
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -87,22 +114,30 @@ private struct AchievementRow: View {
                     Spacer()
                     Text("+\(achievement.xp) XP").font(.caption.bold()).foregroundStyle(.secondary)
                 }
-                Text(achievement.hidden && !unlocked ? "Hidden achievement" : achievement.detail)
+                Text(achievement.hidden && !unlocked ? "Gizli başarım" : achievement.detail)
                     .font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
                 if !unlocked {
-                    ProgressView(value: min(1, progress / max(1, achievement.target)))
-                    if !achievement.hidden {
+                    if isClassicAward {
+                        Text("Henüz kazanılmadı").font(.caption2).foregroundStyle(.tertiary)
+                    } else {
+                        ProgressView(value: min(1, progress / max(1, achievement.target)))
+                    }
+                    if !achievement.hidden && !isClassicAward {
                         Text("\(Int(progress)) / \(Int(achievement.target))")
                             .font(.caption2).foregroundStyle(.tertiary)
                     }
                 } else if let date = store.achievementProfile.unlockedAt[achievement.id] {
-                    Text("Unlocked \(date.formatted(date: .abbreviated, time: .omitted))")
+                    Text("Kazanıldı: \(date.formatted(date: .abbreviated, time: .omitted))")
                         .font(.caption2).foregroundStyle(.tertiary)
                 }
             }
         }
         .padding(14)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .background {
+            if achievement.domain == .books { RoundedRectangle(cornerRadius: 18).fill(BookHubPalette.surface) }
+            else if store.activeReaderProfile == .comics { RoundedRectangle(cornerRadius: 18).fill(ComicHubPalette.surface) }
+            else { RoundedRectangle(cornerRadius: 18).fill(.regularMaterial) }
+        }
         .opacity(unlocked ? 1 : 0.78)
     }
 }
@@ -133,10 +168,10 @@ struct AchievementBanner: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 7) {
-                    Text("ACHIEVEMENT UNLOCKED")
+                    Text("BAŞARIM KAZANILDI")
                         .font(.caption2.bold())
                         .tracking(0.8)
-                    Text(achievement.tier.rawValue.uppercased())
+                    Text(achievement.tier.label.uppercased())
                         .font(.caption2.bold())
                         .foregroundStyle(rarityColor)
                 }
@@ -170,7 +205,6 @@ struct AchievementBanner: View {
         .shadow(color: rarityColor.opacity(0.18), radius: 10, y: 5)
         .padding(.horizontal, 20)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Achievement unlocked, \(achievement.title), \(achievement.tier.rawValue), plus \(achievement.xp) XP")
+        .accessibilityLabel("Başarım kazanıldı, \(achievement.title), \(achievement.tier.label), \(achievement.xp) XP")
     }
 }
-

@@ -6,7 +6,7 @@ struct SeriesLibraryView: View {
     @State private var cachedSeries: [ComicSeries] = []
 
     private var signature: String {
-        store.libraryBooks.map { "\($0.id)|\($0.title)|\($0.readingStatus.rawValue)" }.joined(separator: ";")
+        store.profileLibraryBooks.map { "\($0.id)|\($0.title)|\($0.readingStatus.rawValue)" }.joined(separator: ";")
     }
 
     private var filtered: [ComicSeries] {
@@ -38,10 +38,11 @@ struct SeriesLibraryView: View {
                     .padding()
                 }
             }
-            .navigationTitle("Series")
+            .comicHubSurface(when: store.activeReaderProfile == .comics)
+            .navigationTitle("Seriler")
             .searchable(text: $query, prompt: "Search series")
             .task(id: signature) {
-                cachedSeries = SeriesService.series(from: store.libraryBooks)
+                cachedSeries = SeriesService.series(from: store.profileLibraryBooks)
             }
         }
     }
@@ -52,7 +53,7 @@ private struct SeriesCard: View {
     let series: ComicSeries
 
     private var books: [ComicBook] {
-        SeriesService.books(in: series, from: store.libraryBooks)
+        SeriesService.books(in: series, from: store.profileLibraryBooks)
     }
 
     private var completed: Int { books.filter { $0.readingStatus == .completed }.count }
@@ -61,7 +62,7 @@ private struct SeriesCard: View {
         VStack(alignment: .leading, spacing: 12) {
             ZStack(alignment: .bottomLeading) {
                 if let book = books.first {
-                    CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, maxPixelSize: 620)
+                    CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, revision: book.coverRevision, maxPixelSize: 620)
                 } else {
                     Rectangle().fill(.quaternary)
                 }
@@ -92,7 +93,7 @@ struct SeriesDetailView: View {
     let series: ComicSeries
 
     private var books: [ComicBook] {
-        SeriesService.books(in: series, from: store.libraryBooks)
+        SeriesService.books(in: series, from: store.profileLibraryBooks)
     }
 
     private var completed: Int { books.filter { $0.readingStatus == .completed }.count }
@@ -140,7 +141,7 @@ struct SeriesDetailView: View {
                             BookDetailView(bookID: book.id)
                         } label: {
                             HStack(spacing: 14) {
-                                CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, maxPixelSize: 300)
+                                CachedCoverImage(url: store.coverURL(for: book), comicType: book.type, revision: book.coverRevision, maxPixelSize: 300)
                                     .frame(width: 68, height: 102)
                                     .clipShape(RoundedRectangle(cornerRadius: 9))
 
@@ -167,7 +168,7 @@ struct SeriesDetailView: View {
                                     .foregroundStyle(book.readingStatus == .completed ? .green : .secondary)
                             }
                             .padding(10)
-                            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
+                            .comicHubMaterial(.thinMaterial, in: RoundedRectangle(cornerRadius: 14))
                         }
                         .buttonStyle(.plain)
                     }
@@ -175,6 +176,7 @@ struct SeriesDetailView: View {
             }
             .padding()
         }
+        .comicHubSurface(when: store.activeReaderProfile == .comics)
         .navigationTitle(series.title)
         .navigationBarTitleDisplayMode(.inline)
     }
@@ -213,7 +215,7 @@ struct StoryArcLibraryView: View {
                     }
                 }
             }
-            .navigationTitle("Reading Orders")
+            .comicHubSurface().navigationTitle("Reading Orders")
             .toolbar {
                 Button { showCreator = true } label: { Label("New", systemImage: "plus") }
             }
@@ -236,7 +238,7 @@ private struct StoryArcCreatorView: View {
             List {
                 Section("Name") {
                     TextField("e.g. Night of the Owls", text: $name)
-                }
+                }.comicHubRowSurface()
                 Section("Choose comics in reading order") {
                     ForEach(store.libraryBooks) { book in
                         Button {
@@ -249,9 +251,9 @@ private struct StoryArcCreatorView: View {
                             }
                         }
                     }
-                }
+                }.comicHubRowSurface()
             }
-            .navigationTitle("New Story Arc")
+            .comicHubSurface().navigationTitle("New Story Arc")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
@@ -284,7 +286,7 @@ struct StoryArcDetailView: View {
                             ProgressView(value: Double(store.storyArcProgress(arc)) / 100.0)
                                 .frame(width: 180)
                         }
-                    }
+                    }.comicHubRowSurface()
 
                     Section("Reading order") {
                         ForEach(Array(arc.bookIDs.enumerated()), id: \.element) { index, id in
@@ -314,9 +316,9 @@ struct StoryArcDetailView: View {
                         .onMove { source, destination in
                             store.moveStoryArcBooks(arcID: arc.id, from: source, to: destination)
                         }
-                    }
+                    }.comicHubRowSurface()
                 }
-                .navigationTitle(arc.name)
+                .comicHubSurface().navigationTitle(arc.name)
                 .toolbar { EditButton() }
             } else {
                 ContentUnavailableView("Reading order not found", systemImage: "exclamationmark.triangle")

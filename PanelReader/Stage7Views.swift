@@ -281,7 +281,7 @@ struct Stage7StatisticsView: View {
                 .padding(20)
                 .padding(.bottom, 70)
             }
-            .navigationTitle("Reading Insights")
+            .comicHubSurface().navigationTitle("Reading Insights")
         }
     }
 
@@ -492,7 +492,7 @@ struct FullComicCalendarView: View {
                     Spacer()
                 }
                 .padding(20)
-                .navigationTitle("Tarih Seç")
+                .comicHubSurface().navigationTitle("Tarih Seç")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
@@ -614,7 +614,7 @@ struct DayReadingDetailView: View {
                     }
                 }
             }
-            .navigationTitle(date.formatted(date: .long, time: .omitted))
+            .comicHubSurface().navigationTitle(date.formatted(date: .long, time: .omitted))
             .toolbar { Button("Kapat") { dismiss() } }
         }
     }
@@ -679,6 +679,8 @@ struct PanelWrappedView: View {
                 .padding(20)
                 .padding(.bottom, 70)
             }
+            .bookHubSurface(when: store.activeReaderProfile == .books)
+            .comicHubSurface(when: store.activeReaderProfile == .comics)
             .navigationTitle("Panel Wrapped")
         }
     }

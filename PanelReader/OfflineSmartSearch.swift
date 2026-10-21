@@ -80,6 +80,15 @@ enum OfflineOCRIndexer {
                 do {
                     let index: OCRBookIndex
                     switch descriptor.type {
+                    case .epub:
+                        let publication = try EPUBService.open(descriptor.fileURL)
+                        var pages: [OCRPageText] = []
+                        for chapter in publication.chapters {
+                            try Task.checkCancellation()
+                            pages.append(OCRPageText(page: chapter.id, text: try EPUBPackage.text(at: chapter.fileURL)))
+                            continuation.yield(.progress(page: chapter.id + 1, total: publication.chapters.count))
+                        }
+                        index = OCRBookIndex(schema: OCRBookIndex.schemaVersion, bookID: descriptor.id, title: descriptor.title, sourceIdentity: descriptor.sourceIdentity, pageCount: publication.chapters.count, indexedAt: .now, pages: pages)
                     case .pdf:
                         index = try indexPDF(descriptor, continuation: continuation)
                     case .cbz:

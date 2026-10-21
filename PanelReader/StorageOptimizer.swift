@@ -108,6 +108,8 @@ enum StorageOptimizer {
 
         let pageCount = try await Task.detached(priority: .userInitiated) {
             switch type {
+            case .epub:
+                throw EPUBError.invalidPackage
             case .pdf:
                 return try optimizePDFToCBZ(source: source, destination: output, preset: preset, readerSettings: readerSettings)
             case .cbz:

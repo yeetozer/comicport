@@ -31,7 +31,7 @@ struct PageTextNoteEditor: View {
                 .padding(.horizontal)
                 .padding(.bottom)
             }
-            .navigationTitle("Page Note")
+            .comicHubSurface().navigationTitle("Page Note")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -115,7 +115,7 @@ struct PanelCaptureView: View {
                     }
                 }
             }
-            .navigationTitle("Save to My Panels")
+            .comicHubSurface().navigationTitle("Save to My Panels")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -322,9 +322,12 @@ struct NotesCenterView: View {
                             .padding(.vertical, 4)
                         }
                         .buttonStyle(.plain)
+                        .listRowBackground(store.activeReaderProfile == .books ? BookHubPalette.surface : (store.activeReaderProfile == .comics ? ComicHubPalette.surface : nil))
                     }
                 }
             }
+            .bookHubSurface(when: store.activeReaderProfile == .books)
+            .comicHubSurface(when: store.activeReaderProfile == .comics)
             .navigationTitle("Notes")
             .task(id: store.annotationRevision) {
                 rows = store.annotationPages()
@@ -383,7 +386,7 @@ struct MyPanelsView: View {
                     }
                 }
             }
-            .navigationTitle("My Panels")
+            .comicHubSurface().navigationTitle("My Panels")
             .sheet(item: $selectedPanel) { panel in
                 SavedPanelDetailView(panel: panel)
                     .environmentObject(store)
@@ -453,7 +456,7 @@ private struct SavedPanelDetailView: View {
                 }
             }
             .padding()
-            .navigationTitle("Saved Panel")
+            .comicHubSurface().navigationTitle("Saved Panel")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }

@@ -16,6 +16,7 @@ struct SmartSearchView: View {
 
     private var indexedBooks: Int { store.smartSearchIndexedBookCount }
     private var indexedPages: Int { store.smartSearchIndexedPageCount }
+    private var isBookProfile: Bool { store.activeReaderProfile == .books }
 
     var body: some View {
         NavigationStack {
@@ -44,8 +45,10 @@ struct SmartSearchView: View {
                 .padding(20)
                 .padding(.bottom, 80)
             }
+            .bookHubSurface(when: isBookProfile)
+            .comicHubSurface(when: store.activeReaderProfile == .comics)
             .navigationTitle("Akıllı Arama")
-            .searchable(text: $query, prompt: "Joker, Dick Grayson, replik…")
+            .searchable(text: $query, prompt: isBookProfile ? "Kitap içinde bir kelime veya cümle ara…" : "Joker, Dick Grayson, replik…")
             .task {
                 await store.loadSmartSearchCacheIfNeeded()
                 await performSearch()
@@ -61,7 +64,7 @@ struct SmartSearchView: View {
                     .environmentObject(store)
                     .preferredColorScheme(.dark)
             }
-            .alert("Bu çizgi roman cihazda değil", isPresented: Binding(
+            .alert(isBookProfile ? "Bu kitap cihazda değil" : "Bu çizgi roman cihazda değil", isPresented: Binding(
                 get: { unavailableMessage != nil },
                 set: { if !$0 { unavailableMessage = nil } }
             )) {
@@ -85,15 +88,15 @@ struct SmartSearchView: View {
                 .frame(width: 64, height: 64)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Offline Smart Search")
+                    Text(isBookProfile ? "Kitap içinde arama" : "Offline Smart Search")
                         .font(.largeTitle.bold())
-                    Text("Konuşma balonlarını cihaz üzerinde OCR ile indeksle ve doğrudan sayfaya git.")
+                    Text(isBookProfile ? "Kitap metinlerini bu cihazda indeksle; aradığın sayfa veya bölüme doğrudan git." : "Konuşma balonlarını cihaz üzerinde OCR ile indeksle ve doğrudan sayfaya git.")
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
             }
 
-            Label("İnternet bağlantısı veya sunucu kullanılmaz.", systemImage: "iphone.gen3.radiowaves.left.and.right.slash")
+            Label("İnternet bağlantısı veya sunucu kullanılmaz.", systemImage: "internaldrive")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
@@ -114,7 +117,7 @@ struct SmartSearchView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Arama İndeksi")
                         .font(.title2.bold())
-                    Text("\(indexedBooks) çizgi roman • \(indexedPages) sayfa aranabilir")
+                    Text(isBookProfile ? "\(indexedBooks) kitap • \(indexedPages) sayfa/bölüm aranabilir" : "\(indexedBooks) çizgi roman • \(indexedPages) sayfa aranabilir")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                 }
@@ -138,7 +141,7 @@ struct SmartSearchView: View {
 
                         if indexedBooks > 0 {
                             Button(role: .destructive) {
-                                store.clearAllSmartSearchIndexes()
+                            store.clearProfileSmartSearchIndexes()
                             } label: {
                                 Label("Arama İndeksini Sil", systemImage: "trash")
                             }
@@ -173,7 +176,7 @@ struct SmartSearchView: View {
                         .tint(accentColor)
 
                     HStack {
-                        Text("Sayfa \(progress.page)/\(max(1, progress.totalPages))")
+                        Text("\(store.books.first { $0.id == progress.bookID }?.type == .epub ? "Bölüm" : "Sayfa") \(progress.page)/\(max(1, progress.totalPages))")
                         Spacer()
                         Text("%\(Int((progress.overallFraction * 100).rounded()))")
                     }
@@ -185,7 +188,7 @@ struct SmartSearchView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
             } else {
-                Text("İndeks yalnızca sen istediğinde oluşturulur. OCR metni küçük JSON dosyaları olarak bu cihazda saklanır; PDF/CBZ dosyaların değiştirilmez.")
+                Text(isBookProfile ? "İndeks yalnızca sen istediğinde oluşturulur. EPUB metni doğrudan, PDF sayfaları OCR ile okunur. Dosyaların değiştirilmez. İşlemler seçili profilin kitaplarıyla sınırlıdır." : "İndeks yalnızca sen istediğinde oluşturulur. OCR metni küçük JSON dosyaları olarak bu cihazda saklanır; PDF/CBZ dosyaların değiştirilmez.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -200,10 +203,15 @@ struct SmartSearchView: View {
                 .font(.title2.bold())
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 240), spacing: 12)], spacing: 12) {
-                example("Karakter", "Dick Grayson", "person.text.rectangle")
-                example("Kötü karakter", "Joker", "theatermasks.fill")
-                example("Replik", "I am vengeance", "quote.bubble.fill")
-                example("Yer / kavram", "Gotham", "building.2.fill")
+                if isBookProfile {
+                    example("Kelime", "yolculuk", "text.magnifyingglass")
+                    example("Kavram", "kütüphane", "books.vertical")
+                } else {
+                    example("Karakter", "Dick Grayson", "person.text.rectangle")
+                    example("Kötü karakter", "Joker", "theatermasks.fill")
+                    example("Replik", "I am vengeance", "quote.bubble.fill")
+                    example("Yer / kavram", "Gotham", "building.2.fill")
+                }
             }
 
             if indexedBooks == 0 {
@@ -269,7 +277,7 @@ struct SmartSearchView: View {
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                 if let page = hit.page {
-                                    Text("• Sayfa \(page + 1)")
+                                    Text("• \(store.books.first { $0.id == hit.bookID }?.type == .epub ? "Bölüm" : "Sayfa") \(page + 1)")
                                         .font(.caption.bold())
                                         .foregroundStyle(accentColor)
                                 }
@@ -318,7 +326,7 @@ struct SmartSearchView: View {
         guard let book = store.books.first(where: { $0.id == hit.bookID }) else { return }
 
         guard book.fileAvailable else {
-            unavailableMessage = "Bu sonuç kayıtlı OCR indeksinden geliyor fakat çizgi roman dosyası şu anda bu cihazda değil. Aynı çizgi romanı yeniden içe aktarınca sayfaya geri dönebilirsin."
+            unavailableMessage = book.contentKind == .book ? "Bu sonuç kayıtlı arama indeksinden geliyor fakat kitap dosyası şu anda bu cihazda değil. Aynı kitabı yeniden içe aktararak kaydına dönebilirsin." : "Bu sonuç kayıtlı OCR indeksinden geliyor fakat çizgi roman dosyası şu anda bu cihazda değil. Aynı çizgi romanı yeniden içe aktarınca sayfaya geri dönebilirsin."
             return
         }
 
@@ -340,7 +348,7 @@ struct BookSearchIndexCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Label("Offline Smart Search", systemImage: "text.viewfinder")
+                Label(book.contentKind == .book ? "Kitap içinde arama" : "Offline Smart Search", systemImage: "text.viewfinder")
                     .font(.title2.bold())
 
                 Spacer()
@@ -365,15 +373,15 @@ struct BookSearchIndexCard: View {
             if isCurrentJob, let progress = store.smartSearchProgress {
                 ProgressView(value: progress.totalPages > 0 ? Double(progress.page) / Double(progress.totalPages) : 0)
                     .tint(accentColor)
-                Text("Sayfa \(progress.page)/\(max(1, progress.totalPages)) cihaz üzerinde OCR ile okunuyor…")
+                Text(book.type == .epub ? "Bölüm \(progress.page)/\(max(1, progress.totalPages)) metni indeksleniyor…" : "Sayfa \(progress.page)/\(max(1, progress.totalPages)) cihaz üzerinde OCR ile okunuyor…")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else if isIndexed {
-                Label("Bu çizgi romanın konuşma balonları ve metinleri arama için hazır.", systemImage: "checkmark.circle.fill")
+                Label(book.contentKind == .book ? "Bu kitabın metinleri arama için hazır." : "Bu çizgi romanın konuşma balonları ve metinleri arama için hazır.", systemImage: "checkmark.circle.fill")
                     .font(.subheadline)
                     .foregroundStyle(.green)
             } else if book.fileAvailable {
-                Text("İndeksledikten sonra bu çizgi romanın içindeki isim, kelime ve replikleri internetsiz arayabilirsin.")
+                Text(book.contentKind == .book ? "İndeksledikten sonra kitabın içindeki isim ve kelimeleri internetsiz arayabilirsin." : "İndeksledikten sonra bu çizgi romanın içindeki isim, kelime ve replikleri internetsiz arayabilirsin.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } else {
@@ -383,7 +391,7 @@ struct BookSearchIndexCard: View {
             }
         }
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .comicHubMaterial(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
         .task {
             await store.loadSmartSearchCacheIfNeeded()
         }

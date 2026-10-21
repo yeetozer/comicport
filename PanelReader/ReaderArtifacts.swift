@@ -59,6 +59,8 @@ enum ReaderPageSnapshotService {
     ) async -> Data? {
         let box = await Task.detached(priority: .userInitiated) {
             switch type {
+            case .epub:
+                return PageSnapshotDataBox(nil)
             case .pdf:
                 return PageSnapshotDataBox(pdfSnapshot(
                     fileURL: fileURL,

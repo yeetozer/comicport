@@ -1,5 +1,7 @@
-xcuserdata/
+.DS_Store
+**/xcuserdata/
 DerivedData/
 build/
-.DS_Store
-*.xcuserstate
+.build/
+__pycache__/
+*.pyc

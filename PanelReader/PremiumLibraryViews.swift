@@ -36,7 +36,7 @@ struct PremiumLibraryHomeView: View {
                     }
                 }
             }
-            .navigationTitle("ComicPort")
+            .comicHubSurface().navigationTitle("ComicPort")
             .searchable(text: $search, prompt: "Search library")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -46,7 +46,7 @@ struct PremiumLibraryHomeView: View {
             .navigationDestination(for: UUID.self) { id in
                 if store.books.contains(where: { $0.id == id }) { BookDetailView(bookID: id) }
             }
-            .fileImporter(isPresented: $showImporter, allowedContentTypes: [UTType.pdf, UTType(filenameExtension: "cbz") ?? .data], allowsMultipleSelection: true) { result in
+            .fileImporter(isPresented: $showImporter, allowedContentTypes: ComicArchiveFormat.allowedImportTypes, allowsMultipleSelection: true) { result in
                 switch result {
                 case .success(let urls): urls.forEach(store.importFile)
                 case .failure(let error): store.importError = error.localizedDescription
@@ -93,7 +93,7 @@ private struct GoalCard: View {
             Spacer()
         }
         .padding()
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .comicHubMaterial(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
         .padding(.horizontal)
     }
 }
@@ -117,7 +117,7 @@ private struct ContinueCard: View {
                     Spacer()
                 }
                 .padding()
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .comicHubMaterial(.thinMaterial, in: RoundedRectangle(cornerRadius: 20))
             }.buttonStyle(.plain)
         }.padding(.horizontal)
     }
@@ -185,7 +185,7 @@ private struct ComicCover: View {
             RoundedRectangle(cornerRadius: 14).fill(.quaternary)
             CachedCoverImage(
                 url: store.coverURL(for: book),
-                comicType: book.type,
+                comicType: book.type, revision: book.coverRevision,
                 maxPixelSize: 720
             )
         }
@@ -237,7 +237,7 @@ struct CharacterLibraryView: View {
     @State private var universe: CharacterUniverse? = nil
     @State private var search = ""
     private var profiles: [CharacterProfile] {
-        CharacterLibraryService.profiles(from: store.libraryBooks).filter {
+        CharacterLibraryService.profiles(from: store.profileLibraryBooks).filter {
             (universe == nil || $0.universe == universe) && (search.isEmpty || $0.name.localizedCaseInsensitiveContains(search))
         }
     }
@@ -251,7 +251,8 @@ struct CharacterLibraryView: View {
                     }.padding(.horizontal)
                 }.padding(.vertical)
             }
-            .navigationTitle("Characters")
+            .comicHubSurface(when: store.activeReaderProfile == .comics)
+            .navigationTitle("Karakterler")
             .searchable(text: $search, prompt: "Search characters")
         }
     }
@@ -278,7 +279,7 @@ private struct CharacterLargeCard: View {
 struct CharacterDetailView: View {
     @EnvironmentObject var store: LibraryStore
     let profile: CharacterProfile
-    private var comics: [ComicBook] { store.libraryBooks.filter { profile.comicIDs.contains($0.id) } }
+    private var comics: [ComicBook] { store.profileLibraryBooks.filter { profile.comicIDs.contains($0.id) } }
     private var completed: Int { comics.filter { $0.readingStatus == .completed }.count }
     var body: some View {
         ScrollView {
@@ -292,6 +293,7 @@ struct CharacterDetailView: View {
                 }
             }.padding()
         }
+        .comicHubSurface(when: store.activeReaderProfile == .comics)
         .navigationTitle(profile.name).navigationBarTitleDisplayMode(.inline)
         .navigationDestination(for: UUID.self) { id in if store.books.contains(where: { $0.id == id }) { BookDetailView(bookID: id) } }
     }
