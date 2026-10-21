@@ -500,14 +500,15 @@
 		0D5EFC7546D192F38F7EE200 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PanelReaderWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2.1.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.PanelReader.widgets;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeetozer.comicport.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -520,14 +521,15 @@
 		5A93C8FA3060920ABD123C53 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PanelReaderWidgets/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
-				MARKETING_VERSION = 2.1.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.PanelReader.widgets;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeetozer.comicport.widgets;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
@@ -573,16 +575,18 @@
 		A0000000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PanelReader/PanelReader-MacCatalyst.entitlements";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
-				DEVELOPMENT_TEAM = C7YM6894BS;
+
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PanelReader/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.1.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.PanelReader;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeetozer.comicport;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = YES;
@@ -596,16 +600,18 @@
 		A0000000000000000000000D /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				"EXCLUDED_ARCHS[sdk=macosx*]" = x86_64;
+				"CODE_SIGN_ENTITLEMENTS[sdk=macosx*]" = "PanelReader/PanelReader-MacCatalyst.entitlements";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DERIVE_MACCATALYST_PRODUCT_BUNDLE_IDENTIFIER = NO;
-				DEVELOPMENT_TEAM = C7YM6894BS;
+
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = PanelReader/Info.plist;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.1.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.PanelReader;
+				MARKETING_VERSION = 1.0.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yeetozer.comicport;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = YES;

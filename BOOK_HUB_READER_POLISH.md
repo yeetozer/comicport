@@ -24,4 +24,4 @@
 - Basic reflowable EPUB reader, not a publisher-CSS/fixed-layout engine. SVG, DRM, audio/video remain unsupported. Missing fragments leave the target chapter available without guessing a text match.
 - New Release/archive and iPad/device verification were not performed for this change.
 - Full backup restoration and long-duration testing with large real books remain separate Book Hub QA work.
-- Active development copy: /Users/baranyolcu/Documents/Codex/2026-10-20/new-chat/ComicPort-next. The earlier /Users/baranyolcu/Documents/Codex/ComicPort copy was not modified.
+- Active development copy: ./ComicPort-next. The earlier ./ComicPort copy was not modified.
